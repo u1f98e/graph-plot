@@ -1,30 +1,37 @@
 use std::sync::Arc;
 
 use bevy::{
+    asset::ChangeWatcher,
     prelude::*,
     render::{mesh::Indices, render_resource::PrimitiveTopology},
-    sprite::{Material2dPlugin, MaterialMesh2dBundle}, asset::ChangeWatcher,
+    sprite::{Material2dPlugin, MaterialMesh2dBundle},
 };
-use edge::CurveMaterial;
+use bevy_egui::{EguiContexts, EguiPlugin, egui};
+use materials::CurveMaterial;
 
-mod edge;
+mod materials;
 mod graph;
 mod input;
+mod ui;
+
+#[derive(Component)]
+pub struct MainCamera;
 
 fn setup(
     mut commands: Commands,
     assets: Res<AssetServer>,
-    mut materials: ResMut<Assets<ColorMaterial>>,
-    mut curve_mat: ResMut<Assets<edge::CurveMaterial>>,
+    mut curve_mat: ResMut<Assets<materials::CurveMaterial>>,
     mut meshes: ResMut<Assets<Mesh>>,
 ) {
+    commands.init_resource::<input::CursorInfo>();
+
     let text_style = TextStyle {
         font: assets.load("fonts/FiraSans-Regular.ttf"),
         font_size: 60.0,
         color: Color::WHITE,
     };
 
-    commands.spawn(Camera2dBundle::default());
+    commands.spawn((Camera2dBundle::default(), MainCamera));
 
     commands.spawn(Text2dBundle {
         text: Text::from_section("Test", text_style.clone()).with_alignment(TextAlignment::Center),
@@ -44,8 +51,10 @@ fn setup(
 
     let mesh_test_handle = meshes.add(mesh_test);
 
-    let mat_test = curve_mat.add(edge::CurveMaterial { color: Color::RED, thickness: 2.0 });
-    // let mat_test = materials.add(ColorMaterial::from(Color::PURPLE));
+    let mat_test = curve_mat.add(materials::CurveMaterial {
+        color: Color::RED,
+        thickness: 2.0,
+    });
 
     commands.spawn(MaterialMesh2dBundle {
         material: mat_test,
@@ -62,10 +71,13 @@ fn main() {
         .add_plugins(DefaultPlugins.set(AssetPlugin {
             watch_for_changes: ChangeWatcher::with_delay(std::time::Duration::from_secs(2)),
             ..default()
-         }))
-        .add_plugins(Material2dPlugin::<CurveMaterial>::default())
-        .add_asset::<edge::CurveMaterial>()
+        }))
+        .add_plugins(EguiPlugin)
+        .add_plugins(graph::plugin::GraphPlugin)
         .add_systems(Startup, setup)
-        .add_systems(Update, (update, input::key_input))
+        .add_systems(
+            Update,
+            (update, ui::egui_sys, input::key_input_sys, input::mouse_movement_sys, input::mouse_button_sys),
+        )
         .run();
 }
