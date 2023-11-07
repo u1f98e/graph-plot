@@ -1,10 +1,10 @@
-use bevy::{input::mouse::MouseWheel, prelude::*, window::PrimaryWindow};
+use bevy::{input::{mouse::{MouseWheel, MouseButtonInput}, ButtonState}, prelude::*, window::PrimaryWindow};
 use bevy_egui::{EguiContext};
 
-use crate::{graph::{Graph, self, Grabbable, plugin::ImageCache}, MainCamera};
+use crate::{graph::{Graph, Grabbable, plugin::ImageCache}, MainCamera};
 use crate::graph::event::*;
 
-#[derive(Default)]
+#[derive(Default, PartialEq, Eq)]
 pub enum CursorMode {
     #[default]
     Normal,
@@ -12,6 +12,18 @@ pub enum CursorMode {
     CreateEdge,
     Remove,
     Paint,
+}
+
+impl core::fmt::Display for CursorMode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            CursorMode::Normal => write!(f, "Drag/Pan"),
+            CursorMode::CreateNode => write!(f, "Create Node"),
+            CursorMode::CreateEdge => write!(f, "Create Edge"),
+            CursorMode::Remove => write!(f, "Erase"),
+            CursorMode::Paint => write!(f, "Paint")
+        }
+    }
 }
 
 #[derive(Resource, Default)]
@@ -98,60 +110,63 @@ fn get_closest_grab(
 }
 
 pub fn mouse_button_sys(
-    resources: (Res<Input<MouseButton>>, ResMut<CursorInfo>, Res<ImageCache>, ResMut<Graph>),
-    mut query: (Query<&mut EguiContext>, Query<(Entity, &crate::graph::Grabbable, &mut Transform)>, Query<(Entity, With<MainCamera>)>),
+    mut ev_mouse_button: EventReader<MouseButtonInput>,
+    mut cursor: ResMut<CursorInfo>,
+    query: (Query<&mut EguiContext>, Query<(Entity, &crate::graph::Grabbable, &mut Transform)>, Query<(Entity, With<MainCamera>)>),
     mut ev_add_node: EventWriter<AddNodeEvent>,
     mut ev_add_edge: EventWriter<AddEdgeEvent>,
     mut ev_remove_graph_item: EventWriter<RemoveItemEvent>,
 ) {
-    let (mut q_egui, q_grab, mut q_camera) = query;
-    let (buttons, mut cursor, img_cache, mut graph) = resources;
+    let (mut q_egui, q_grab, q_camera) = query;
 
-    if q_egui
-        .iter_mut()
-        .all(|mut ctx| ctx.get_mut().wants_pointer_input())
-    {
-        return;
-    }
+    for MouseButtonInput { button, state, .. } in ev_mouse_button.iter() {
+        if *button == MouseButton::Left && !state.is_pressed() {
+            cursor.grabbed = None;
+        }
 
-    if buttons.just_pressed(MouseButton::Left) {
-        match cursor.mode {
-            CursorMode::Normal => {
-                if let Some(entity) = get_closest_grab(&cursor, &q_grab) {
-                    cursor.grabbed = Some(entity);
-                }
-                else {
-                    cursor.grabbed = Some(q_camera.single().0);
-                }
-            }
-            CursorMode::CreateNode => {
-                ev_add_node.send(AddNodeEvent(cursor.world_pos));
-            }
-            CursorMode::CreateEdge => {
-                if let Some(entity) = get_closest_grab(&cursor, &q_grab) {
-                    if let Some(selected_entity) = cursor.selected {
-                        ev_add_edge.send(AddEdgeEvent(selected_entity, entity));
-                        cursor.selected = None;
+        if q_egui
+            .iter_mut()
+            .any(|mut ctx| ctx.get_mut().wants_pointer_input())
+        {
+            continue;
+        }
+
+        if *button == MouseButton::Left && state.is_pressed() {
+            match cursor.mode {
+                CursorMode::Normal => {
+                    if let Some(entity) = get_closest_grab(&cursor, &q_grab) {
+                        cursor.grabbed = Some(entity);
                     }
                     else {
-                        cursor.selected = Some(entity);
+                        cursor.grabbed = Some(q_camera.single().0);
                     }
                 }
-            }
-            CursorMode::Remove => {
-                if let Some(entity) = get_closest_grab(&cursor, &q_grab) {
-                    ev_remove_graph_item.send(RemoveItemEvent(entity));
+                CursorMode::CreateNode => {
+                    ev_add_node.send(AddNodeEvent(cursor.world_pos));
                 }
-            }
-            CursorMode::Paint => {
-                if let Some(entity) = get_closest_grab(&cursor, &q_grab) {
-                    // graph.paint(&mut commands, );
+                CursorMode::CreateEdge => {
+                    if let Some(entity) = get_closest_grab(&cursor, &q_grab) {
+                        if let Some(selected_entity) = cursor.selected {
+                            ev_add_edge.send(AddEdgeEvent(selected_entity, entity));
+                            cursor.selected = None;
+                        }
+                        else {
+                            cursor.selected = Some(entity);
+                        }
+                    }
+                }
+                CursorMode::Remove => {
+                    if let Some(entity) = get_closest_grab(&cursor, &q_grab) {
+                        ev_remove_graph_item.send(RemoveItemEvent(entity));
+                    }
+                }
+                CursorMode::Paint => {
+                    if let Some(entity) = get_closest_grab(&cursor, &q_grab) {
+                        // graph.paint(&mut commands, );
+                    }
                 }
             }
         }
-    }
-    else if buttons.just_released(MouseButton::Left) {
-        cursor.grabbed = None;
     }
 }
 
