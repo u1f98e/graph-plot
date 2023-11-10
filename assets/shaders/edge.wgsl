@@ -1,4 +1,5 @@
-#import bevy_pbr::mesh_vertex_output MeshVertexOutput
+// #import bevy_pbr::mesh_vertex_output MeshVertexOutput
+#import bevy_sprite::mesh2d_vertex_output MeshVertexOutput
 
 struct CurveMaterial {
 	color: vec4<f32>,
@@ -10,7 +11,8 @@ var<uniform> material: CurveMaterial;
 
 @fragment
 fn fragment(mesh: MeshVertexOutput) -> @location(0) vec4<f32> {
-	return quadratic_curve(mesh.uv, material.color);
+	return quadratic_curve(mesh.uv, mesh.color);
+	// return material.color;
 }
 
 fn quadratic_curve(point: vec2<f32>, in_color: vec4<f32>) -> vec4<f32> {

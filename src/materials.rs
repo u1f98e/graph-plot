@@ -13,4 +13,8 @@ impl Material2d for CurveMaterial {
 	fn fragment_shader() -> ShaderRef {
 		"shaders/edge.wgsl".into()
 	}
+
+	// fn alpha_mode(&self) -> AlphaMode {
+    //     AlphaMode::Blend
+    // }
 }

@@ -1,13 +1,7 @@
-pub mod plugin;
 pub mod event;
+pub mod plugin;
 
-use std::collections::HashMap;
-
-use bevy::{
-    prelude::*,
-    render::{mesh::Indices, render_resource::PrimitiveTopology},
-    sprite::Material2dPlugin, log,
-};
+use bevy::{prelude::*, render::{render_resource::PrimitiveTopology, mesh::Indices}, sprite::Mesh2dHandle};
 
 use crate::materials;
 
@@ -25,8 +19,8 @@ impl Default for Grabbable {
 }
 
 #[derive(Component)]
-struct GNode {
-    id: u64
+pub struct GNode {
+    id: u64,
 }
 
 #[derive(Bundle)]
@@ -37,15 +31,16 @@ struct GNodeBundle {
 }
 
 #[derive(Component)]
-struct GEdge {
+pub struct GEdge {
     start: u64,
     end: u64,
-    color: Color,
+    start_node: Entity,
+    end_node: Entity,
     weight: i32,
 }
 
 #[derive(Default, Bundle)]
-struct GEdgeHandle {
+pub struct GEdgeHandle {
     grab: Grabbable,
     sprite: SpriteBundle,
 }
@@ -59,6 +54,7 @@ struct GEdgeBundle {
 #[derive(Default)]
 struct AdjacencyList {
     data: Vec<Vec<u64>>,
+    degree: usize,
 }
 
 impl AdjacencyList {
@@ -72,12 +68,22 @@ impl AdjacencyList {
 
     pub fn add_edge(&mut self, a: u64, b: u64) {
         self.data[a as usize].push(b);
-        self.data[b as usize].push(a);
+        self.degree += 1;
+
+        if a != b {
+            self.data[b as usize].push(a);
+            self.degree += 1;
+        }
     }
 
     pub fn remove_edge(&mut self, a: u64, b: u64) {
         self.data[a as usize].retain(|&x| x != b);
-        self.data[b as usize].retain(|&x| x != a);
+        self.degree -= 1;
+
+        if a != b {
+            self.data[b as usize].retain(|&x| x != a);
+            self.degree -= 1;
+        }
     }
 
     pub fn insert_node(&mut self, node: u64) {
@@ -88,7 +94,7 @@ impl AdjacencyList {
                     if *x >= node {
                         *x += 1;
                     }
-                };
+                }
             }
         }
 
@@ -102,7 +108,9 @@ impl AdjacencyList {
 
     pub fn remove_node(&mut self, node: u64) {
         for row in &mut self.data {
-            *row = row.iter().filter_map(|x| {
+            *row = row
+                .iter()
+                .filter_map(|x| {
                     if *x == node {
                         None
                     } else if *x > node {
@@ -116,71 +124,61 @@ impl AdjacencyList {
 
         self.data.remove(node as usize);
     }
+
+    pub fn node_count(&self) -> usize {
+        self.data.len()
+    }
+
+    pub fn degree(&self) -> usize {
+        self.degree
+    }
 }
 
 #[derive(Resource, Default)]
 pub struct Graph {
     adjacencies: AdjacencyList,
-    edge_mesh_handle: Handle<Mesh>,
+    node_edges: Vec<Vec<Entity>>,
+    edge_mesh_handle: Mesh2dHandle,
 }
 
 impl Graph {
-    pub fn new(assets: &mut Assets<Mesh>) -> Self {
-        let edge_mesh_handle = assets.add(Mesh::new(PrimitiveTopology::TriangleList));
+    pub fn node_count(&self) -> usize {
+        self.adjacencies.node_count()
+    }
 
-        Self {
-            edge_mesh_handle,
-            ..Default::default()
-        }
+    pub fn degree(&self) -> usize {
+        self.adjacencies.degree()
     }
 
     fn new_node(&mut self) -> u64 {
+        self.node_edges.push(Vec::new());
         self.adjacencies.append_node()
     }
 
     fn remove_node(&mut self, id: u64) {
+        self.node_edges.remove(id as usize);
         self.adjacencies.remove_node(id);
     }
 
-    fn add_edge(&mut self, start: u64, end: u64) {
+    fn add_edge(&mut self, edge_e: Entity, start: u64, end: u64) {
+        self.node_edges
+            .get_mut(start as usize)
+            .unwrap()
+            .push(edge_e);
+        self.node_edges.get_mut(end as usize).unwrap().push(edge_e);
         self.adjacencies.add_edge(start, end);
     }
 
-    fn remove_edge(&mut self, start: u64, end: u64) {
+    fn remove_edge(&mut self, edge_e: Entity, start: u64, end: u64) {
+        for edge_set in &mut self.node_edges {
+            edge_set.retain(|&x| x != edge_e);
+        }
         self.adjacencies.remove_edge(start, end);
     }
 
-    fn node_moved(&mut self, id: u64, new_pos: Vec3) {
+    fn node_moved(&mut self, id: u64, new_pos: Vec3) {}
 
-    }
-
-    fn edge_handle_moved(&mut self, edge: &GEdge, new_pos: Vec3) {
-
-    }
-
-    // pub fn regen_edge_mesh(&self, assets: &mut Assets<Mesh>) {
-    //     let mut mesh = assets.get_mut(&self.edge_mesh_handle).unwrap();
-
-    //     let positions: Vec<[f32; 3]> = self.edges.iter().flat_map(|edge| edge.vertices()).collect();
-
-    //     let colors: Vec<[f32; 4]> = self.edges.iter().map(|edge| edge.color_vec()).collect();
-
-    //     let tex_coords: Vec<[f32; 3]> = self
-    //         .edges
-    //         .iter()
-    //         .flat_map(|edge| edge.tex_coords())
-    //         .collect();
-
-    //     let indices = self
-    //         .edges
-    //         .iter()
-    //         .enumerate()
-    //         .flat_map(|(idx, edge)| edge.indices(idx as u32 * 4))
-    //         .collect();
-
-    //     mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, positions);
-    //     mesh.set_indices(Some(Indices::U32(indices)));
-    // }
+    fn edge_handle_moved(&mut self, edge: &GEdge, new_pos: Vec3) {}
 
     // pub fn update_edge_mesh_pos(&self, assets: &mut Assets<Mesh>) {
     //     let mut mesh = assets.get_mut(&self.node_mesh_handle);

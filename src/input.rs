@@ -1,8 +1,19 @@
-use bevy::{input::{mouse::{MouseWheel, MouseButtonInput}, ButtonState}, prelude::*, window::PrimaryWindow};
-use bevy_egui::{EguiContext};
+use bevy::{
+    input::{
+        keyboard::KeyboardInput,
+        mouse::{MouseButtonInput, MouseWheel},
+        ButtonState,
+    },
+    prelude::*,
+    window::PrimaryWindow, ecs::query::QueryIter,
+};
+use bevy_egui::EguiContext;
 
-use crate::{graph::{Graph, Grabbable, plugin::ImageCache}, MainCamera};
-use crate::graph::event::*;
+use crate::graph::{event::*, GNode, GEdgeHandle, GEdge};
+use crate::{
+    graph::{plugin::ImageCache, Grabbable, Graph},
+    MainCamera,
+};
 
 #[derive(Default, PartialEq, Eq)]
 pub enum CursorMode {
@@ -21,7 +32,7 @@ impl core::fmt::Display for CursorMode {
             CursorMode::CreateNode => write!(f, "Create Node"),
             CursorMode::CreateEdge => write!(f, "Create Edge"),
             CursorMode::Remove => write!(f, "Erase"),
-            CursorMode::Paint => write!(f, "Paint")
+            CursorMode::Paint => write!(f, "Paint"),
         }
     }
 }
@@ -35,33 +46,64 @@ pub struct CursorInfo {
     pub selected: Option<Entity>,
 }
 
-pub fn key_input_sys(
-    key: Res<Input<KeyCode>>,
-    mut cursor: ResMut<CursorInfo>,
-    mut egui_ctx: Query<&mut EguiContext>,
-) {
-    if egui_ctx
-        .iter_mut()
-        .all(|mut ctx| ctx.get_mut().wants_keyboard_input())
-    {
-        return;
+impl CursorInfo {
+    pub fn set_mode(&mut self, mode: CursorMode) {
+        self.selected = None;
+        self.mode = mode;
     }
+}
 
-    if key.just_pressed(KeyCode::Escape) {
-        std::process::exit(0);
-    }
-    if key.just_pressed(KeyCode::N) {
-        cursor.mode = CursorMode::CreateNode;
-    }
-    if key.just_pressed(KeyCode::S) {
-        cursor.mode = CursorMode::Normal;
+fn egui_has_pointer(query: &mut Query<&mut EguiContext>) -> bool {
+    query.iter_mut().any(|mut ctx| {
+        let ctx = ctx.get_mut();
+        ctx.wants_pointer_input() || ctx.is_pointer_over_area()
+    })
+}
+
+fn egui_has_keyboard(query: &mut Query<&mut EguiContext>) -> bool {
+    query
+        .iter_mut()
+        .any(|mut ctx| ctx.get_mut().wants_keyboard_input())
+}
+
+pub(crate) fn key_input_sys(
+    mut key_evr: EventReader<KeyboardInput>,
+    mut cursor: ResMut<CursorInfo>,
+    mut q_egui: Query<&mut EguiContext>,
+    mut regen_ev: EventWriter<RegenEdgeMesh>,
+) {
+    for KeyboardInput {
+        key_code, state, ..
+    } in key_evr.iter()
+    {
+        if egui_has_keyboard(&mut q_egui) {
+            continue;
+        }
+
+        if state.is_pressed() {
+            if let Some(key) = key_code {
+                match key {
+                    KeyCode::S => cursor.mode = CursorMode::CreateNode,
+                    KeyCode::E => cursor.mode = CursorMode::CreateEdge,
+                    KeyCode::W => cursor.mode = CursorMode::Normal,
+                    KeyCode::D => cursor.mode = CursorMode::Remove,
+                    KeyCode::R => {
+                        regen_ev.send(RegenEdgeMesh());
+                    }
+                    _ => (),
+                }
+            }
+        }
     }
 }
 
 pub fn mouse_movement_sys(
     mut cursor_evr: EventReader<CursorMoved>,
     mut cursor: ResMut<CursorInfo>,
-    mut q_camera: Query<(Entity, &Camera, &mut Transform, &GlobalTransform), With<crate::MainCamera>>,
+    mut q_camera: Query<
+        (Entity, &Camera, &mut Transform, &GlobalTransform),
+        With<crate::MainCamera>,
+    >,
     mut q_grab: Query<(Entity, &mut Transform), (With<Grabbable>, Without<Camera>)>,
     mut ev_move_item: EventWriter<ItemMovedEvent>,
 ) {
@@ -80,8 +122,7 @@ pub fn mouse_movement_sys(
             if camera_e == entity {
                 camera_tf.translation.x -= cursor_delta.x;
                 camera_tf.translation.y += cursor_delta.y;
-            }
-            else {
+            } else {
                 let mut transform = q_grab.get_mut(entity).unwrap().1;
                 transform.translation = Vec3::new(cursor.world_pos.x, cursor.world_pos.y, 0.0);
                 ev_move_item.send(ItemMovedEvent(entity));
@@ -90,14 +131,17 @@ pub fn mouse_movement_sys(
     }
 }
 
-fn get_closest_grab(
+fn get_closest_grab<'a, I>(
     cursor: &CursorInfo,
-    q_grab: &Query<(Entity, &Grabbable, &mut Transform)>,
-) -> Option<Entity> {
+    q_grab_iter: I,
+) -> Option<Entity> 
+where
+    I: Iterator<Item = (Entity, &'a Grabbable, &'a Transform)>,
+{
     let mut closest_distance = f32::INFINITY;
     let mut closest_grab: Option<Entity> = None;
 
-    for (entity, grab, transform) in q_grab.iter() {
+    for (entity, grab, transform) in q_grab_iter {
         let pos = Vec2::new(transform.translation.x, transform.translation.y);
         let distance = cursor.world_pos.distance(pos);
         if distance < grab.radius && distance < closest_distance {
@@ -112,56 +156,57 @@ fn get_closest_grab(
 pub fn mouse_button_sys(
     mut ev_mouse_button: EventReader<MouseButtonInput>,
     mut cursor: ResMut<CursorInfo>,
-    query: (Query<&mut EguiContext>, Query<(Entity, &crate::graph::Grabbable, &mut Transform)>, Query<(Entity, With<MainCamera>)>),
+    query: (
+        Query<&mut EguiContext>,
+        Query<(Entity, &crate::graph::Grabbable, &mut Transform), (With<GNode>, Without<GEdge>)>,
+        Query<(Entity, &crate::graph::Grabbable, &mut Transform), (With<GEdge>, Without<GNode>)>,
+        Query<Entity, With<MainCamera>>,
+    ),
     mut ev_add_node: EventWriter<AddNodeEvent>,
     mut ev_add_edge: EventWriter<AddEdgeEvent>,
     mut ev_remove_graph_item: EventWriter<RemoveItemEvent>,
 ) {
-    let (mut q_egui, q_grab, q_camera) = query;
+    let (mut q_egui, q_node, q_handle, q_camera) = query;
 
     for MouseButtonInput { button, state, .. } in ev_mouse_button.iter() {
         if *button == MouseButton::Left && !state.is_pressed() {
             cursor.grabbed = None;
         }
 
-        if q_egui
-            .iter_mut()
-            .any(|mut ctx| ctx.get_mut().wants_pointer_input())
-        {
+        if egui_has_pointer(&mut q_egui) {
             continue;
         }
 
+        let q_grab_combined = q_node.iter().chain(q_handle.iter());
         if *button == MouseButton::Left && state.is_pressed() {
             match cursor.mode {
                 CursorMode::Normal => {
-                    if let Some(entity) = get_closest_grab(&cursor, &q_grab) {
+                    if let Some(entity) = get_closest_grab(&cursor, q_grab_combined) {
                         cursor.grabbed = Some(entity);
-                    }
-                    else {
-                        cursor.grabbed = Some(q_camera.single().0);
+                    } else {
+                        cursor.grabbed = Some(q_camera.single());
                     }
                 }
                 CursorMode::CreateNode => {
                     ev_add_node.send(AddNodeEvent(cursor.world_pos));
                 }
                 CursorMode::CreateEdge => {
-                    if let Some(entity) = get_closest_grab(&cursor, &q_grab) {
+                    if let Some(entity) = get_closest_grab(&cursor, q_node.iter()) {
                         if let Some(selected_entity) = cursor.selected {
                             ev_add_edge.send(AddEdgeEvent(selected_entity, entity));
                             cursor.selected = None;
-                        }
-                        else {
+                        } else {
                             cursor.selected = Some(entity);
                         }
                     }
                 }
                 CursorMode::Remove => {
-                    if let Some(entity) = get_closest_grab(&cursor, &q_grab) {
+                    if let Some(entity) = get_closest_grab(&cursor, q_grab_combined) {
                         ev_remove_graph_item.send(RemoveItemEvent(entity));
                     }
                 }
                 CursorMode::Paint => {
-                    if let Some(entity) = get_closest_grab(&cursor, &q_grab) {
+                    if let Some(entity) = get_closest_grab(&cursor, q_grab_combined) {
                         // graph.paint(&mut commands, );
                     }
                 }
