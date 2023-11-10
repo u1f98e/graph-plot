@@ -42,6 +42,7 @@ pub struct CursorInfo {
     pub mode: CursorMode,
     pub grabbed: Option<Entity>,
     pub selected: Option<Entity>,
+    pub paint_color: Color,
 }
 
 impl CursorInfo {
@@ -159,13 +160,14 @@ pub fn mouse_button_sys(
         Query<&mut EguiContext>,
         Query<(Entity, &crate::graph::Grabbable, &mut Transform), (With<GNode>, Without<GEdge>)>,
         Query<(Entity, &crate::graph::Grabbable, &mut Transform), (With<GEdge>, Without<GNode>)>,
-        Query<Entity, With<MainCamera>>,
+        Query<(Entity, &mut Sprite)>,
+        Query<Entity, With<MainCamera>>
     ),
     mut ev_add_node: EventWriter<AddNodeEvent>,
     mut ev_add_edge: EventWriter<AddEdgeEvent>,
     mut ev_remove_graph_item: EventWriter<RemoveItemEvent>,
 ) {
-    let (mut q_egui, q_node, q_handle, q_camera) = query;
+    let (mut q_egui, q_node, q_handle, mut q_sprite, q_camera) = query;
 
     for MouseButtonInput { button, state, .. } in ev_mouse_button.iter() {
         if *button == MouseButton::Left && !state.is_pressed() {
@@ -206,7 +208,9 @@ pub fn mouse_button_sys(
                 }
                 CursorMode::Paint => {
                     if let Some(entity) = get_closest_grab(&cursor, q_grab_combined) {
-                        // graph.paint(&mut commands, );
+                        if let Ok((_, mut sprite)) = q_sprite.get_mut(entity) {
+                            sprite.color = cursor.paint_color;
+                        }
                     }
                 }
             }

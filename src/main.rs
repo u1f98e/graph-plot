@@ -53,6 +53,10 @@ fn setup(
         Mesh::ATTRIBUTE_UV_0,
         vec![[0.0, 0.0], [1.0, 1.0], [0.5, 0.0]]
     );
+    mesh_test.insert_attribute(
+        Mesh::ATTRIBUTE_COLOR,
+        vec![[1.0, 0.0, 0.0, 1.0], [0.0, 1.0, 0.0, 0.5], [0.0, 0.0, 1.0, 1.0]]
+    );
     mesh_test.set_indices(Some(Indices::U32(vec![0, 1, 2])));
 
     let mesh_test_handle = meshes.add(mesh_test);

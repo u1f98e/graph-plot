@@ -72,6 +72,10 @@ impl GraphPlugin {
             Mesh::ATTRIBUTE_UV_0,
             vec![[0.0, 0.0], [1.0, 1.0], [0.5, 0.0]],
         );
+        mesh.insert_attribute(
+            Mesh::ATTRIBUTE_COLOR,
+            vec![[1.0, 0.0, 0.0, 1.0], [0.0, 1.0, 0.0, 0.5], [0.0, 0.0, 1.0, 1.0]]
+        );
         mesh.set_indices(Some(Indices::U32(vec![0, 1, 2])));
 
         let mat_test = curve_mats.add(materials::CurveMaterial {
