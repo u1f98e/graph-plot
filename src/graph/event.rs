@@ -135,7 +135,6 @@ pub(super) fn move_item_event(
     q_nodes: Query<(&GNode, &Transform)>,
     q_edges: Query<(&GEdge, &Transform)>,
 ) {
-    let mesh: &mut Mesh = meshes.get_mut(&graph.edge_mesh_handle.0).unwrap();
     for ItemMovedEvent(entity) in events.iter() {
         if let Ok((node, transform)) = q_nodes.get(*entity) {
 
