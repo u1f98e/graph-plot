@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 
-use bevy::math::Vec3Swizzles;
 use bevy::render::mesh::Indices;
 use bevy::render::render_resource::PrimitiveTopology;
 use bevy::sprite::{MaterialMesh2dBundle, Mesh2dHandle};

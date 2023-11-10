@@ -2,16 +2,14 @@ use bevy::{
     input::{
         keyboard::KeyboardInput,
         mouse::{MouseButtonInput, MouseWheel},
-        ButtonState,
     },
     prelude::*,
-    window::PrimaryWindow, ecs::query::QueryIter,
 };
 use bevy_egui::EguiContext;
 
-use crate::graph::{event::*, GNode, GEdgeHandle, GEdge};
+use crate::graph::{event::*, GNode, GEdge};
 use crate::{
-    graph::{plugin::ImageCache, Grabbable, Graph},
+    graph::Grabbable,
     MainCamera,
 };
 
@@ -83,10 +81,11 @@ pub(crate) fn key_input_sys(
         if state.is_pressed() {
             if let Some(key) = key_code {
                 match key {
-                    KeyCode::S => cursor.mode = CursorMode::CreateNode,
-                    KeyCode::E => cursor.mode = CursorMode::CreateEdge,
-                    KeyCode::W => cursor.mode = CursorMode::Normal,
-                    KeyCode::D => cursor.mode = CursorMode::Remove,
+                    KeyCode::S => cursor.set_mode(CursorMode::CreateNode),
+                    KeyCode::E => cursor.set_mode(CursorMode::CreateEdge),
+                    KeyCode::W => cursor.set_mode(CursorMode::Normal),
+                    KeyCode::D => cursor.set_mode(CursorMode::Remove),
+                    KeyCode::A => cursor.set_mode(CursorMode::Paint),
                     KeyCode::R => {
                         regen_ev.send(RegenEdgeMesh());
                     }

@@ -1,4 +1,4 @@
-use bevy::prelude::*;
+use bevy::{prelude::*, render::mesh::Indices};
 
 use super::*;
 
@@ -25,20 +25,20 @@ pub(super) fn add_node_event(
     cache: Res<ImageCache>,
 ) {
     for AddNodeEvent(pos) in events.iter() {
-        let id = graph.new_node();
         let transform = Transform::default().with_translation(Vec3::new(pos.x, pos.y, 0.0));
 
         println!("Position: {:?}", transform.translation);
-        commands.spawn(GNodeBundle {
-            node: super::GNode { id },
+        let node = commands.spawn(GNodeBundle {
+            node: super::GNode{},
             sprite: SpriteBundle {
                 texture: cache.0.get("node").unwrap().clone(),
                 transform,
                 ..Default::default()
             },
             grab: Grabbable::default(),
-        });
+        }).id();
 
+        graph.add_node(node);
         regen_ev.send(RegenEdgeMesh());
     }
 }
@@ -48,14 +48,14 @@ pub(super) fn add_edge_event(
     mut regen_ev: EventWriter<RegenEdgeMesh>,
     mut graph: ResMut<Graph>,
     mut commands: Commands,
-    q_nodes: Query<(&GNode, &Transform)>,
+    q_nodes: Query<(Entity, &Transform), With<GNode>>,
     cache: Res<ImageCache>,
 ) {
     for AddEdgeEvent(a, b) in events.iter() {
         let (start, start_t) = q_nodes.get(*a).unwrap();
         let (end, end_t) = q_nodes.get(*b).unwrap();
 
-        let transform = if start.id == end.id {
+        let transform = if start == end {
             // This edge is a loop
             Transform::default()
                 .with_translation(start_t.translation + Vec3::new(0.0, 50.0, 0.0))
@@ -74,10 +74,8 @@ pub(super) fn add_edge_event(
         let edge = commands
             .spawn(GEdgeBundle {
                 edge: GEdge {
-                    start: start.id,
-                    end: end.id,
-                    start_node: *a,
-                    end_node: *b,
+                    start: *a,
+                    end: *b,
                     weight: 1,
                 },
                 handle: GEdgeHandle {
@@ -91,7 +89,7 @@ pub(super) fn add_edge_event(
             })
             .id();
 
-        graph.add_edge(edge, start.id, end.id);
+        graph.add_edge(edge, &start, &end);
         regen_ev.send(RegenEdgeMesh());
     }
 }
@@ -101,27 +99,20 @@ pub(super) fn remove_item_event(
     mut regen_ev: EventWriter<RegenEdgeMesh>,
     mut graph: ResMut<Graph>,
     mut commands: Commands,
-    mut q_nodes: Query<&mut GNode>,
+    mut q_nodes: Query<Entity, With<GNode>>,
     q_edges: Query<(Entity, &GEdge)>,
 ) {
     for RemoveItemEvent(entity) in events.iter() {
-        let node_id = q_nodes.get(*entity).ok().map(|n| n.id);
-        if let Some(id) = node_id {
-            graph.remove_node(id);
-
-            for mut n in q_nodes.iter_mut() {
-                if n.id > id {
-                    n.id -= 1;
-                }
-            }
+        if let Ok(node) = q_nodes.get(*entity) {
+            graph.remove_node(&node);
 
             for (edge_e, edge) in q_edges.iter() {
-                if edge.start == id || edge.end == id {
+                if edge.start== node || edge.end== node {
                     commands.entity(edge_e).despawn();
                 }
             }
         } else if let Ok((_, edge)) = q_edges.get(*entity) {
-            graph.remove_edge(*entity, edge.start, edge.end);
+            graph.remove_edge(*entity, &edge.start, &edge.end);
         }
 
         commands.entity(*entity).despawn();
@@ -135,6 +126,7 @@ pub(super) fn move_item_event(
     q_nodes: Query<(&GNode, &Transform)>,
     q_edges: Query<(&GEdge, &Transform)>,
 ) {
+    // let mesh: &mut Mesh = meshes.get_mut(&graph.edge_mesh_handle.0).unwrap();
     for ItemMovedEvent(entity) in events.iter() {
         if let Ok((node, transform)) = q_nodes.get(*entity) {
 
@@ -151,21 +143,21 @@ pub(super) fn regen_edge_mesh(
     q_node: Query<(Entity, &Transform, &Sprite), With<GNode>>,
     q_edge: Query<(&GEdge, &Transform, &Sprite)>,
 ) {
-    let mut test = -0.5;
     for _ in events.iter() {
-        test -= 0.1;
         println!("Regen edge mesh");
         let mesh: &mut Mesh = meshes.get_mut(&graph.edge_mesh_handle.0).unwrap();
-        let mut positions: Vec<[f32; 3]> = vec![[test, -0.5, 0.0], [0.5, -0.5, 0.0], [0.0, 0.5, 0.0]];
-        let mut indices: Vec<u32> = vec![0, 1, 2];
+
+        // There needs to be some initial values here or the mesh gets optimized
+        // out
+        let mut positions: Vec<[f32; 3]> = vec![[0.0, 0.0, 0.0], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0]];
         let mut tex_coords: Vec<[f32; 2]> = vec![[0.0, 0.0], [1.0, 1.0], [0.5, 0.0]];
-        let mut colors: Vec<[f32; 4]> = vec![[0.0, 0.0, 1.0, 1.0], [1.0, 1.0, 0.0, 1.0], [0.5, 0.0, 1.0, 1.0]];
+        let mut colors: Vec<[f32; 4]> = vec![[0.0, 0.0, 0.0, 1.0], [0.0, 0.0, 0.0, 1.0], [0.0, 0.0, 0.0, 1.0]];
+        let mut indices: Vec<u32> = vec![0, 1, 2];
 
         for (mut index, (edge, edge_t, handle_sprite)) in q_edge.iter().enumerate() {
             index += 1;
-            println!("{index}");
-            let (_, start_t, start_sprite) = q_node.get(edge.start_node).unwrap();
-            let (_, end_t, end_sprite) = q_node.get(edge.end_node).unwrap();
+            let (_, start_t, start_sprite) = q_node.get(edge.start).unwrap();
+            let (_, end_t, end_sprite) = q_node.get(edge.end).unwrap();
 
             let start_pos = start_t.translation;
             let handle_pos = edge_t.translation;

@@ -1,14 +1,10 @@
-use core::panic;
-use std::sync::Arc;
-
 use bevy::{
     asset::ChangeWatcher,
     prelude::*,
     render::{mesh::Indices, render_resource::PrimitiveTopology},
-    sprite::{Material2dPlugin, MaterialMesh2dBundle, Mesh2dHandle},
+    sprite::{MaterialMesh2dBundle, Mesh2dHandle},
 };
-use bevy_egui::{egui, EguiContexts, EguiPlugin};
-use materials::CurveMaterial;
+use bevy_egui::EguiPlugin;
 
 mod graph;
 mod input;
