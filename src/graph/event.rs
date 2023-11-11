@@ -158,15 +158,20 @@ pub(super) fn regen_edge_mesh(
             index += 1;
             let (_, start_t, start_sprite) = q_node.get(edge.start).unwrap();
             let (_, end_t, end_sprite) = q_node.get(edge.end).unwrap();
+            let start = start_t.translation;
+            let handle = edge_t.translation;
+            let end = end_t.translation;
 
-            let start_pos = start_t.translation;
-            let handle_pos = edge_t.translation;
-            let end_pos = end_t.translation;
+            let start_end_mid = start.lerp(end, 0.5);
+            // let start_end = (start_t.translation - end_t.translation).normalize();
+            // let start_mid = (start_t.translation - edge_t.translation).normalize();
+            // let end_mid = (end_t.translation - edge_t.translation).normalize();
+            let handle = 2.0 * handle - start_end_mid;
 
             positions.extend_from_slice(&[
-                [start_pos.x, start_pos.y, 0.0],
-                [handle_pos.x, handle_pos.y, 0.0],
-                [end_pos.x, end_pos.y, 0.0],
+                [start.x, start.y, 0.0],
+                [handle.x, handle.y, 0.0],
+                [end.x, end.y, 0.0],
             ]);
 
             tex_coords.extend_from_slice(&[[0.0, 0.0], [0.5, 0.0], [1.0, 1.0]]);

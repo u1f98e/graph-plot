@@ -79,7 +79,6 @@ impl GraphPlugin {
         mesh.set_indices(Some(Indices::U32(vec![0, 1, 2])));
 
         let mat_test = curve_mats.add(materials::CurveMaterial {
-            color: Color::BLUE,
             thickness: 2.0,
         });
 

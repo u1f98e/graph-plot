@@ -62,7 +62,6 @@ fn setup(
     let mesh_test_handle = meshes.add(mesh_test);
 
     let mat_test = curve_mat.add(materials::CurveMaterial {
-        color: Color::RED,
         thickness: 2.0,
     });
 

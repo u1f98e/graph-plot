@@ -7,6 +7,8 @@ use bevy::{prelude::*, sprite::Mesh2dHandle};
 
 use self::plugin::ImageCache;
 
+static EDGE_VERTEX_OFFSET: f32 = 5.0;
+
 #[derive(Component)]
 pub struct Grabbable {
     pub radius: f32,
@@ -75,20 +77,18 @@ impl Graph {
 
     fn add_edge(&mut self, edge: Entity, start: &Entity, end: &Entity) {
         self.adjacencies.get_mut(start).unwrap().push(edge);
-        self.degree += 1;
         if start != end {
             self.adjacencies.get_mut(end).unwrap().push(edge);
-            self.degree += 1;
         }
+        self.degree += 2;
     }
 
     fn remove_edge(&mut self, edge: Entity, start: &Entity, end: &Entity) {
         self.adjacencies.get_mut(end).unwrap().retain(|&x| x != edge);
-        self.degree -= 1;
         if start != end {
             self.adjacencies.get_mut(end).unwrap().retain(|&x| x != edge);
-            self.degree -= 1;
         }
+        self.degree -= 2;
     }
 
     fn node_moved(&mut self, id: u64, new_pos: Vec3) {}

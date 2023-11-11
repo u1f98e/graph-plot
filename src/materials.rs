@@ -4,8 +4,6 @@ use bevy::{prelude::*, render::render_resource::{AsBindGroup, ShaderRef}, reflec
 #[uuid = "172eee85-2e56-4e77-972a-6c040d366ccb"]
 pub struct CurveMaterial {
 	#[uniform(0)]
-	pub color: Color,
-	#[uniform(0)]
 	pub thickness: f32,
 }
 
