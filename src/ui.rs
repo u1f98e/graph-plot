@@ -7,7 +7,7 @@ pub(crate) fn egui_sys(mut contexts: EguiContexts, mut cursor: ResMut<CursorInfo
     egui::Window::new("Graph Plotter").show(contexts.ctx_mut(), |ui| {
 		ui.label(format!("Vertices: {}", graph.node_count()));
 		ui.label(format!("Edges: {}", graph.degree() / 2));
-		ui.label(format!("Toral Degree: {}", graph.degree()));
+		ui.label(format!("Total Degree: {}", graph.degree()));
 
 		let mode = &mut cursor.mode;
 		egui::ComboBox::from_label("Mode")
@@ -21,9 +21,9 @@ pub(crate) fn egui_sys(mut contexts: EguiContexts, mut cursor: ResMut<CursorInfo
 			});
 
 		if *mode == CursorMode::Paint {
-			let mut color: [f32; 3] = cursor.paint_color.as_rgba_f32()[0..3].try_into().unwrap();
-			egui::color_picker::color_edit_button_rgb(ui, &mut color);
-			cursor.paint_color = Color::rgb(color[0], color[1], color[2]);
+			let mut color: [u8; 3] = cursor.paint_color.as_rgba_u8()[0..3].try_into().unwrap();
+			egui::color_picker::color_edit_button_srgb(ui, &mut color);
+			cursor.paint_color = Color::rgb_u8(color[0], color[1], color[2]);
 		}
     });
 }

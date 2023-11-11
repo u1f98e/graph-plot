@@ -7,11 +7,8 @@ use bevy::{
 };
 use bevy_egui::EguiContext;
 
-use crate::graph::{event::*, GNode, GEdge};
-use crate::{
-    graph::Grabbable,
-    MainCamera,
-};
+use crate::graph::{event::*, GEdge, GNode};
+use crate::{graph::Grabbable, MainCamera};
 
 #[derive(Default, PartialEq, Eq)]
 pub enum CursorMode {
@@ -125,16 +122,16 @@ pub fn mouse_movement_sys(
             } else {
                 let mut transform = q_grab.get_mut(entity).unwrap().1;
                 transform.translation = Vec3::new(cursor.world_pos.x, cursor.world_pos.y, 0.0);
-                ev_move_item.send(ItemMovedEvent(entity));
+                ev_move_item.send(ItemMovedEvent(
+                    entity,
+                    Vec3::new(cursor_delta.x, -cursor_delta.y, 0.0),
+                ));
             }
         }
     }
 }
 
-fn get_closest_grab<'a, I>(
-    cursor: &CursorInfo,
-    q_grab_iter: I,
-) -> Option<Entity> 
+fn get_closest_grab<'a, I>(cursor: &CursorInfo, q_grab_iter: I) -> Option<Entity>
 where
     I: Iterator<Item = (Entity, &'a Grabbable, &'a Transform)>,
 {
@@ -153,7 +150,7 @@ where
     closest_grab
 }
 
-pub fn mouse_button_sys(
+pub(crate) fn mouse_button_sys(
     mut ev_mouse_button: EventReader<MouseButtonInput>,
     mut cursor: ResMut<CursorInfo>,
     query: (
@@ -161,11 +158,12 @@ pub fn mouse_button_sys(
         Query<(Entity, &crate::graph::Grabbable, &mut Transform), (With<GNode>, Without<GEdge>)>,
         Query<(Entity, &crate::graph::Grabbable, &mut Transform), (With<GEdge>, Without<GNode>)>,
         Query<(Entity, &mut Sprite)>,
-        Query<Entity, With<MainCamera>>
+        Query<Entity, With<MainCamera>>,
     ),
     mut ev_add_node: EventWriter<AddNodeEvent>,
     mut ev_add_edge: EventWriter<AddEdgeEvent>,
     mut ev_remove_graph_item: EventWriter<RemoveItemEvent>,
+    mut ev_regen_mesh: EventWriter<RegenEdgeMesh>,
 ) {
     let (mut q_egui, q_node, q_handle, mut q_sprite, q_camera) = query;
 
@@ -210,6 +208,7 @@ pub fn mouse_button_sys(
                     if let Some(entity) = get_closest_grab(&cursor, q_grab_combined) {
                         if let Ok((_, mut sprite)) = q_sprite.get_mut(entity) {
                             sprite.color = cursor.paint_color;
+                            ev_regen_mesh.send(RegenEdgeMesh());
                         }
                     }
                 }

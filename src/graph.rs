@@ -20,8 +20,14 @@ impl Default for Grabbable {
     }
 }
 
-#[derive(Component)]
+enum GNodeSide {
+    Start,
+    End
+}
+
+#[derive(Component, Default)]
 pub struct GNode {
+    offsets: Vec<(usize, GNodeSide)>,
 }
 
 #[derive(Bundle)]
@@ -36,6 +42,7 @@ pub struct GEdge {
     start: Entity,
     end: Entity,
     weight: i32,
+    offset: usize
 }
 
 #[derive(Default, Bundle)]
