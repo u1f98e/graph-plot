@@ -10,6 +10,7 @@ mod graph;
 mod input;
 mod materials;
 mod ui;
+pub mod types;
 
 #[derive(Component)]
 pub struct MainCamera;
@@ -113,14 +114,14 @@ fn main() {
             watch_for_changes: ChangeWatcher::with_delay(std::time::Duration::from_secs(2)),
             ..default()
         }))
-        // .insert_resource(bevy::winit::WinitSettings::desktop_app())
-        .insert_resource(bevy::winit::WinitSettings {
-            focused_mode: bevy::winit::UpdateMode::Continuous,
-            unfocused_mode: bevy::winit::UpdateMode::ReactiveLowPower {
-                max_wait: std::time::Duration::from_millis(10),
-            },
-            ..default()
-        })
+        .insert_resource(bevy::winit::WinitSettings::desktop_app())
+        // .insert_resource(bevy::winit::WinitSettings {
+        //     focused_mode: bevy::winit::UpdateMode::Continuous,
+        //     unfocused_mode: bevy::winit::UpdateMode::ReactiveLowPower {
+        //         max_wait: std::time::Duration::from_millis(10),
+        //     },
+        //     ..default()
+        // })
         .add_plugins(EguiPlugin)
         .add_plugins(graph::plugin::GraphPlugin)
         .add_systems(Startup, setup)
@@ -132,6 +133,7 @@ fn main() {
                 input::key_input_sys,
                 input::mouse_movement_sys,
                 input::mouse_button_sys,
+                input::mouse_scroll_input,
             ),
         )
         .run();

@@ -1,4 +1,7 @@
-use bevy::{core_pipeline::core_2d::graph, prelude::*, render::mesh::{Indices, VertexAttributeValues}};
+use bevy::{prelude::*, render::mesh::{Indices, VertexAttributeValues}};
+
+use crate::input::CursorInfo;
+use crate::types::*;
 
 use super::*;
 
@@ -17,6 +20,46 @@ pub struct ItemMovedEvent(pub Entity, pub Vec3);
 #[derive(Event)]
 pub(crate) struct RegenEdgeMesh();
 
+#[derive(Event)]
+pub enum ItemSelectedEvent {
+    Selected(Entity),
+    Deselected,
+}
+
+pub(crate) fn item_selected_event(
+    mut events: EventReader<ItemSelectedEvent>,
+    mut cursor: ResMut<CursorInfo>,
+    mut q_node: Query<&mut Handle<Image>, GNodeExclusive>,
+    mut q_edge: Query<&mut Handle<Image>, GEdgeExclusive>,
+    cache: Res<ImageCache>,
+) {
+    for event in events.iter() {
+        match event {
+            ItemSelectedEvent::Selected(entity) => {
+                if let Ok(mut texture) = q_node.get_mut(*entity) {
+                    *texture = cache.0.get("nodeSelected").unwrap().clone();
+                }
+                else if let Ok(mut texture) = q_edge.get_mut(*entity) {
+                    *texture = cache.0.get("edgeSelected").unwrap().clone();
+                }
+                cursor.selected = Some(*entity);
+            }
+            ItemSelectedEvent::Deselected => {
+                if let Some(entity) = cursor.selected {
+                    if let Ok(mut texture) = q_node.get_mut(entity) {
+                        *texture = cache.0.get("node").unwrap().clone();
+                    }
+                    else if let Ok(mut texture) = q_edge.get_mut(entity) {
+                        *texture = cache.0.get("edge").unwrap().clone();
+                    }
+                }
+                cursor.selected = None;
+            }
+        }
+    }
+}
+
+
 pub(super) fn add_node_event(
     mut events: EventReader<AddNodeEvent>,
     mut regen_ev: EventWriter<RegenEdgeMesh>,
@@ -26,8 +69,6 @@ pub(super) fn add_node_event(
 ) {
     for AddNodeEvent(pos) in events.iter() {
         let transform = Transform::default().with_translation(Vec3::new(pos.x, pos.y, 0.0));
-
-        println!("Position: {:?}", transform.translation);
         let node = commands
             .spawn(GNodeBundle {
                 node: GNode::default(),
@@ -172,7 +213,6 @@ pub(super) fn regen_edge_mesh(
     mut q_edge: Query<(&mut GEdge, &Transform, &Sprite)>,
 ) {
     for _ in events.iter() {
-        println!("Regen edge mesh");
         let mesh: &mut Mesh = meshes.get_mut(&graph.edge_mesh_handle.0).unwrap();
 
         // There needs to be some initial values here or the mesh gets optimized

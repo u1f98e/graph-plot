@@ -1,16 +1,16 @@
 use bevy::{
     input::{
         keyboard::KeyboardInput,
-        mouse::{MouseButtonInput, MouseWheel},
+        mouse::{MouseButtonInput, MouseScrollUnit, MouseWheel},
     },
     prelude::*,
 };
 use bevy_egui::EguiContext;
 
-use crate::graph::{event::*, GEdge, GNode};
+use crate::{graph::event::*, types::*};
 use crate::{graph::Grabbable, MainCamera};
 
-#[derive(Default, PartialEq, Eq)]
+#[derive(Copy, Clone, Default, PartialEq, Eq)]
 pub enum CursorMode {
     #[default]
     Normal,
@@ -43,9 +43,12 @@ pub struct CursorInfo {
 }
 
 impl CursorInfo {
-    pub fn set_mode(&mut self, mode: CursorMode) {
-        self.selected = None;
-        self.mode = mode;
+    pub fn set_mode(&mut self, mode: &CursorMode, ev_selected: &mut EventWriter<ItemSelectedEvent>) {
+        self.mode = *mode;
+
+        if *mode != CursorMode::Normal {
+            ev_selected.send(ItemSelectedEvent::Deselected);
+        }
     }
 }
 
@@ -66,7 +69,8 @@ pub(crate) fn key_input_sys(
     mut key_evr: EventReader<KeyboardInput>,
     mut cursor: ResMut<CursorInfo>,
     mut q_egui: Query<&mut EguiContext>,
-    mut regen_ev: EventWriter<RegenEdgeMesh>,
+    mut ev_regen: EventWriter<RegenEdgeMesh>,
+    mut ev_selected: EventWriter<ItemSelectedEvent>,
 ) {
     for KeyboardInput {
         key_code, state, ..
@@ -79,13 +83,13 @@ pub(crate) fn key_input_sys(
         if state.is_pressed() {
             if let Some(key) = key_code {
                 match key {
-                    KeyCode::S => cursor.set_mode(CursorMode::CreateNode),
-                    KeyCode::E => cursor.set_mode(CursorMode::CreateEdge),
-                    KeyCode::W => cursor.set_mode(CursorMode::Normal),
-                    KeyCode::D => cursor.set_mode(CursorMode::Remove),
-                    KeyCode::A => cursor.set_mode(CursorMode::Paint),
+                    KeyCode::S => cursor.set_mode(&CursorMode::CreateNode, &mut ev_selected),
+                    KeyCode::E => cursor.set_mode(&CursorMode::CreateEdge, &mut ev_selected),
+                    KeyCode::W => cursor.set_mode(&CursorMode::Normal, &mut ev_selected),
+                    KeyCode::D => cursor.set_mode(&CursorMode::Remove, &mut ev_selected),
+                    KeyCode::A => cursor.set_mode(&CursorMode::Paint, &mut ev_selected),
                     KeyCode::R => {
-                        regen_ev.send(RegenEdgeMesh());
+                        ev_regen.send(RegenEdgeMesh());
                     }
                     _ => (),
                 }
@@ -98,19 +102,19 @@ pub fn mouse_movement_sys(
     mut cursor_evr: EventReader<CursorMoved>,
     mut cursor: ResMut<CursorInfo>,
     mut q_camera: Query<
-        (Entity, &Camera, &mut Transform, &GlobalTransform),
+        (Entity, &Camera, &mut Transform, &OrthographicProjection, &GlobalTransform),
         With<crate::MainCamera>,
     >,
     mut q_grab: Query<(Entity, &mut Transform), (With<Grabbable>, Without<Camera>)>,
     mut ev_move_item: EventWriter<ItemMovedEvent>,
 ) {
-    let (camera_e, camera, mut camera_tf, camera_global_tf) = q_camera.single_mut();
+    let (camera_e, camera, mut camera_tf, proj, camera_global_tf) = q_camera.single_mut();
 
     for CursorMoved { position, .. } in cursor_evr.iter() {
         let ray = camera.viewport_to_world(camera_global_tf, *position);
         let mut cursor_delta = Vec2::ZERO;
         if let Some(ray) = ray {
-            cursor_delta = *position - cursor.screen_pos;
+            cursor_delta = (*position - cursor.screen_pos) * proj.scale;
             cursor.screen_pos = *position;
             cursor.world_pos = ray.origin.truncate();
         }
@@ -141,9 +145,19 @@ where
     for (entity, grab, transform) in q_grab_iter {
         let pos = Vec2::new(transform.translation.x, transform.translation.y);
         let distance = cursor.world_pos.distance(pos);
-        if distance < grab.radius && distance < closest_distance {
-            closest_distance = distance;
-            closest_grab = Some(entity);
+        match grab {
+            Grabbable::Circle { radius } => {
+                if distance < *radius && distance < closest_distance {
+                    closest_distance = distance;
+                    closest_grab = Some(entity);
+                }
+            }
+            _ => {
+                if closest_grab.is_none() {
+                    // Only grab rect if no other options
+                    closest_grab = Some(entity)
+                }
+            }
         }
     }
 
@@ -155,8 +169,8 @@ pub(crate) fn mouse_button_sys(
     mut cursor: ResMut<CursorInfo>,
     query: (
         Query<&mut EguiContext>,
-        Query<(Entity, &crate::graph::Grabbable, &mut Transform), (With<GNode>, Without<GEdge>)>,
-        Query<(Entity, &crate::graph::Grabbable, &mut Transform), (With<GEdge>, Without<GNode>)>,
+        Query<(Entity, &crate::graph::Grabbable, &mut Transform), GNodeExclusive>,
+        Query<(Entity, &crate::graph::Grabbable, &mut Transform), GEdgeExclusive>,
         Query<(Entity, &mut Sprite)>,
         Query<Entity, With<MainCamera>>,
     ),
@@ -164,6 +178,7 @@ pub(crate) fn mouse_button_sys(
     mut ev_add_edge: EventWriter<AddEdgeEvent>,
     mut ev_remove_graph_item: EventWriter<RemoveItemEvent>,
     mut ev_regen_mesh: EventWriter<RegenEdgeMesh>,
+    mut ev_selected: EventWriter<ItemSelectedEvent>,
 ) {
     let (mut q_egui, q_node, q_handle, mut q_sprite, q_camera) = query;
 
@@ -193,9 +208,10 @@ pub(crate) fn mouse_button_sys(
                     if let Some(entity) = get_closest_grab(&cursor, q_node.iter()) {
                         if let Some(selected_entity) = cursor.selected {
                             ev_add_edge.send(AddEdgeEvent(selected_entity, entity));
-                            cursor.selected = None;
+                            ev_selected.send(ItemSelectedEvent::Deselected);
                         } else {
                             cursor.selected = Some(entity);
+                            ev_selected.send(ItemSelectedEvent::Selected(entity));
                         }
                     }
                 }
@@ -217,4 +233,26 @@ pub(crate) fn mouse_button_sys(
     }
 }
 
-pub fn mouse_scroll_input(mut scroll_evr: EventReader<MouseWheel>) {}
+pub fn mouse_scroll_input(
+    mut scroll_evr: EventReader<MouseWheel>,
+    mut q_camera: Query<&mut OrthographicProjection, With<MainCamera>>,
+) {
+    for MouseWheel { unit, y, .. } in scroll_evr.iter() {
+        let mut proj = q_camera.single_mut();
+        match unit {
+            MouseScrollUnit::Line => {
+                proj.scale -= y * 0.1;
+            }
+            MouseScrollUnit::Pixel => {
+                proj.scale -= y * 0.001;
+            }
+        }
+
+        if proj.scale < 0.8 {
+            proj.scale = 0.8;
+        }
+        else if proj.scale > 3.0 {
+            proj.scale = 3.0;
+        }
+    }
+}

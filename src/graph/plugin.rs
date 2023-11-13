@@ -17,6 +17,8 @@ pub struct ImageCache(pub(super) HashMap<String, Handle<Image>>);
 pub struct GraphPlugin;
 impl Plugin for GraphPlugin {
     fn build(&self, app: &mut App) {
+        use bevy::render::view::VisibilitySystems::CheckVisibility;
+
         app.add_plugins(Material2dPlugin::<materials::CurveMaterial>::default())
             .add_asset::<materials::CurveMaterial>()
             .add_systems(Startup, (GraphPlugin::init, GraphPlugin::init_graph))
@@ -27,6 +29,7 @@ impl Plugin for GraphPlugin {
             .add_event::<RemoveItemEvent>()
             .add_event::<ItemMovedEvent>()
             .add_event::<RegenEdgeMesh>()
+            .add_event::<ItemSelectedEvent>()
             .add_systems(
                 Update,
                 (
@@ -34,30 +37,34 @@ impl Plugin for GraphPlugin {
                     event::add_edge_event,
                     event::remove_item_event,
                     event::move_item_event,
-					event::regen_edge_mesh,
+                    event::regen_edge_mesh,
+                    event::item_selected_event,
                 ),
+            )
+            .add_systems(
+                PostUpdate,
+                GraphPlugin::force_mesh_visible.in_set(CheckVisibility),
             );
     }
 }
 
 impl GraphPlugin {
+    #[rustfmt::skip]
     fn init(
         assets: ResMut<AssetServer>,
         mut img_cache: ResMut<ImageCache>,
     ) {
-        img_cache
-            .0
-            .insert("node".into(), assets.load("sprites/node30.png"));
-        img_cache
-            .0
-            .insert("handle".into(), assets.load("sprites/handle30.png"));
+        img_cache.0.insert("node".into(), assets.load("sprites/node30.png"));
+        img_cache.0.insert("handle".into(), assets.load("sprites/handle30.png"));
+        img_cache.0.insert("nodeSelected".into(), assets.load("sprites/node_selected30.png"));
+        img_cache.0.insert("handleSelected".into(), assets.load("sprites/handle_selected30.png"));
     }
 
-	fn init_graph(
-		mut commands: Commands,
-		mut meshes: ResMut<Assets<Mesh>>,
-		mut curve_mats: ResMut<Assets<materials::CurveMaterial>>,
-	) {
+    fn init_graph(
+        mut commands: Commands,
+        mut meshes: ResMut<Assets<Mesh>>,
+        mut curve_mats: ResMut<Assets<materials::CurveMaterial>>,
+    ) {
         let mut mesh = Mesh::new(PrimitiveTopology::TriangleList);
         // mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, Vec::<[f32; 3]>::new());
         // mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, Vec::<[f32; 2]>::new());
@@ -74,27 +81,40 @@ impl GraphPlugin {
         );
         mesh.insert_attribute(
             Mesh::ATTRIBUTE_COLOR,
-            vec![[1.0, 0.0, 0.0, 1.0], [0.0, 1.0, 0.0, 0.5], [0.0, 0.0, 1.0, 1.0]]
+            vec![
+                [1.0, 0.0, 0.0, 1.0],
+                [0.0, 1.0, 0.0, 0.5],
+                [0.0, 0.0, 1.0, 1.0],
+            ],
         );
         mesh.set_indices(Some(Indices::U32(vec![0, 1, 2])));
 
-        let mat_test = curve_mats.add(materials::CurveMaterial {
-            thickness: 2.0,
-        });
+        let mat_test = curve_mats.add(materials::CurveMaterial { thickness: 2.0 });
 
         let edge_mesh_handle: Mesh2dHandle = meshes.add(mesh).into();
-        commands.spawn(MaterialMesh2dBundle {
-            material: mat_test,
-            mesh: edge_mesh_handle.clone(),
-            transform: Transform::default().with_translation(Vec3::new(0.0, 0.0, -1.0)),
-            ..Default::default()
-        });
+        let edge_mesh = commands
+            .spawn(MaterialMesh2dBundle {
+                material: mat_test,
+                mesh: edge_mesh_handle.clone(),
+                transform: Transform::default().with_translation(Vec3::new(0.0, 0.0, -1.0)),
+                ..Default::default()
+            })
+            .id();
 
         let graph = Graph {
             edge_mesh_handle,
-			..Default::default()
+            edge_mesh,
+            adjacencies: HashMap::new(),
+            degree: 0,
         };
 
-		commands.insert_resource(graph);
-	}
+        commands.insert_resource(graph);
+    }
+
+    fn force_mesh_visible(graph: Res<Graph>, mut q_mesh: Query<&mut ComputedVisibility>) {
+        q_mesh
+            .get_mut(graph.edge_mesh)
+            .unwrap()
+            .set_visible_in_view();
+    }
 }
