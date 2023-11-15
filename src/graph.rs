@@ -70,7 +70,8 @@ pub struct NodeLabelBundle {
 
 enum GNodeSide {
     Start,
-    End
+    End,
+    Loop
 }
 
 #[derive(Component, Default)]
@@ -90,7 +91,7 @@ pub struct GEdge {
     start: Entity,
     end: Entity,
     weight: i32,
-    offset: usize
+    offset: Option<usize>
 }
 
 #[derive(Default, Bundle)]
@@ -110,7 +111,8 @@ pub struct Graph {
     adjacencies: HashMap<Entity, Vec<Entity>>, // <Node, Vec<Edge>>
     degree: usize,
     edge_mesh_handle: Mesh2dHandle,
-    edge_mesh: Entity
+    edge_mesh: Entity,
+    pub directed: bool
 }
 
 impl Graph {
@@ -140,25 +142,10 @@ impl Graph {
     }
 
     fn remove_edge(&mut self, edge: Entity, start: &Entity, end: &Entity) {
-        self.adjacencies.get_mut(end).unwrap().retain(|&x| x != edge);
+        self.adjacencies.get_mut(start).unwrap().retain(|&x| x != edge);
         if start != end {
             self.adjacencies.get_mut(end).unwrap().retain(|&x| x != edge);
         }
         self.degree -= 2;
     }
-
-    fn node_moved(&mut self, id: u64, new_pos: Vec3) {}
-
-    fn edge_handle_moved(&mut self, edge: &GEdge, new_pos: Vec3) {}
-
-    // pub fn update_edge_mesh_pos(&self, assets: &mut Assets<Mesh>) {
-    //     let mut mesh = assets.get_mut(&self.node_mesh_handle);
-    // }
-
-    // pub fn update_node_mesh(&self, assets: &mut Assets<Mesh>) {
-    //     let mut mesh = assets.get_mut(&self.node_mesh_handle);
-    //     // TODO: Use attribute_mut to only modify specific verticies (probably doesn't matter)
-    // }
-
-    // pub fn update_edge_mesh() {}
 }

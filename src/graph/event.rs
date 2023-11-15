@@ -37,20 +37,20 @@ pub(crate) fn item_selected_event(
         match event {
             ItemSelectedEvent::Selected(entity) => {
                 if let Ok(mut texture) = q_node.get_mut(*entity) {
-                    *texture = cache.0.get("nodeSelected").unwrap().clone();
+                    *texture = cache.get("nodeSelected").unwrap().clone();
                 }
                 else if let Ok(mut texture) = q_edge.get_mut(*entity) {
-                    *texture = cache.0.get("edgeSelected").unwrap().clone();
+                    *texture = cache.get("edgeSelected").unwrap().clone();
                 }
                 cursor.selected = Some(*entity);
             }
             ItemSelectedEvent::Deselected => {
                 if let Some(entity) = cursor.selected {
                     if let Ok(mut texture) = q_node.get_mut(entity) {
-                        *texture = cache.0.get("node").unwrap().clone();
+                        *texture = cache.get("node").unwrap().clone();
                     }
                     else if let Ok(mut texture) = q_edge.get_mut(entity) {
-                        *texture = cache.0.get("edge").unwrap().clone();
+                        *texture = cache.get("edge").unwrap().clone();
                     }
                 }
                 cursor.selected = None;
@@ -65,7 +65,7 @@ pub(super) fn add_node_event(
     mut regen_ev: EventWriter<RegenEdgeMesh>,
     mut graph: ResMut<Graph>,
     mut commands: Commands,
-    cache: Res<ImageCache>,
+    img_cache: Res<ImageCache>,
 ) {
     for AddNodeEvent(pos) in events.iter() {
         let transform = Transform::default().with_translation(Vec3::new(pos.x, pos.y, 0.0));
@@ -73,7 +73,7 @@ pub(super) fn add_node_event(
             .spawn(GNodeBundle {
                 node: GNode::default(),
                 sprite: SpriteBundle {
-                    texture: cache.0.get("node").unwrap().clone(),
+                    texture: img_cache.get("node").unwrap().clone(),
                     transform,
                     ..Default::default()
                 },
@@ -109,8 +109,12 @@ pub(super) fn add_edge_event(
             let diff = end_t.translation - start_t.translation;
             let offset = (Vec3::new(diff.y, -diff.x, 0.0).normalize() * diff.length() * 0.3)
                 .clamp_length(5.0, 25.0);
+            let sign = if start_t.translation.y < end_t.translation.y { 1.0 } else { -1.0 };
             Transform::default()
                 .with_translation(midpoint + offset)
+                .with_rotation(Quat::from_axis_angle(Vec3::Z, 
+                    (end_t.translation - start_t.translation).angle_between(Vec3::X) * sign
+                ))
                 .with_scale(Vec3::splat(0.5))
         };
 
@@ -120,12 +124,12 @@ pub(super) fn add_edge_event(
                     start: *a,
                     end: *b,
                     weight: 1,
-                    offset: 0,
+                    offset: None,
                 },
                 handle: GEdgeHandle {
                     grab: Grabbable::default(),
                     sprite: SpriteBundle {
-                        texture: cache.0.get("handle").unwrap().clone(),
+                        texture: cache.get("handle").unwrap().clone(),
                         transform,
                         ..Default::default()
                     },
@@ -143,20 +147,24 @@ pub(super) fn remove_item_event(
     mut regen_ev: EventWriter<RegenEdgeMesh>,
     mut graph: ResMut<Graph>,
     mut commands: Commands,
-    q_nodes: Query<Entity, With<GNode>>,
+    mut q_nodes: Query<&mut GNode>,
     q_edges: Query<(Entity, &GEdge)>,
 ) {
     for RemoveItemEvent(entity) in events.iter() {
-        if let Ok(node) = q_nodes.get(*entity) {
-            graph.remove_node(&node);
+        if let Ok(_) = q_nodes.get(*entity) {
+            graph.remove_node(&entity);
 
             for (edge_e, edge) in q_edges.iter() {
-                if edge.start == node || edge.end == node {
+                if edge.start == *entity || edge.end == *entity {
                     commands.entity(edge_e).despawn();
                 }
             }
         } else if let Ok((_, edge)) = q_edges.get(*entity) {
-            graph.remove_edge(*entity, &edge.start, &edge.end);
+            if let Some(offset) = edge.offset {
+                q_nodes.get_mut(edge.start).unwrap().offsets.retain(|x| x.0 != offset - 1);
+                q_nodes.get_mut(edge.end).unwrap().offsets.retain(|x| x.0 != offset + 1);
+                graph.remove_edge(*entity, &edge.start, &edge.end);
+            }
         }
 
         commands.entity(*entity).despawn();
@@ -168,7 +176,7 @@ pub(super) fn move_item_event(
     mut events: EventReader<ItemMovedEvent>,
     mut meshes: ResMut<Assets<Mesh>>,
     graph: Res<Graph>,
-    q_nodes: Query<(&GNode, &Transform), Without<GEdge>>,
+    q_nodes: Query<(Entity, &GNode, &Transform), Without<GEdge>>,
     mut q_edges: Query<(&GEdge, &mut Transform), Without<GNode>>,
 ) {
     let mesh: &mut Mesh = meshes.get_mut(&graph.edge_mesh_handle.0).unwrap();
@@ -178,29 +186,44 @@ pub(super) fn move_item_event(
     };
 
     for ItemMovedEvent(entity, delta) in events.iter() {
-        if let Ok((node, transform)) = q_nodes.get(*entity) {
+        if let Ok((node_e, node, node_t)) = q_nodes.get(*entity) {
             for (offset, _side) in node.offsets.iter() {
-                positions[*offset] = transform.translation.to_array();
+                positions[*offset] = node_t.translation.to_array();
             }
             for edge_e in graph.adjacencies.get(entity).unwrap() {
                 let (edge, mut edge_t) = q_edges.get_mut(*edge_e).unwrap();
                 edge_t.translation += *delta / 2.0;
 
-                let start = Vec3::from_array(positions[edge.offset - 1]);
-                let end = Vec3::from_array(positions[edge.offset + 1]);
+                if node_e == edge.start {
+                    let (_, _, end_node_t) = q_nodes.get(edge.end).unwrap();
+                    let sign = if node_t.translation.y < end_node_t.translation.y { 1.0 } else { -1.0 };
+                    edge_t.rotation = Quat::from_rotation_z(
+                        (end_node_t.translation - node_t.translation).angle_between(Vec3::X) * sign
+                    );
+                } else {
+                    let (_, _, start_node_t) = q_nodes.get(edge.start).unwrap();
+                    let sign = if node_t.translation.y < start_node_t.translation.y { -1.0 } else { 1.0 };
+                    edge_t.rotation = Quat::from_rotation_z(
+                        (node_t.translation - start_node_t.translation).angle_between(Vec3::X) * sign
+                    );
+                }
+
+                if let Some(offset) = edge.offset {
+                    let start = Vec3::from_array(positions[offset - 1]);
+                    let end = Vec3::from_array(positions[offset + 1]);
+                    let start_end_mid = start.lerp(end, 0.5);
+                    let pos = 2.0 * edge_t.translation - start_end_mid;
+                    positions[offset] = pos.to_array();
+                }
+            }
+        } else if let Ok((edge, edge_t)) = q_edges.get(*entity) {
+            if let Some(offset) = edge.offset {
+                let start = Vec3::from_array(positions[offset - 1]);
+                let end = Vec3::from_array(positions[offset + 1]);
                 let start_end_mid = start.lerp(end, 0.5);
                 let pos = 2.0 * edge_t.translation - start_end_mid;
-                positions[edge.offset] = pos.to_array();
+                positions[offset] = pos.to_array();
             }
-        } else if let Ok((edge, transform)) = q_edges.get(*entity) {
-            if edge.offset == 0 || edge.offset == positions.len() - 1 {
-                continue;
-            }
-            let start = Vec3::from_array(positions[edge.offset - 1]);
-            let end = Vec3::from_array(positions[edge.offset + 1]);
-            let start_end_mid = start.lerp(end, 0.5);
-            let pos = 2.0 * transform.translation - start_end_mid;
-            positions[edge.offset] = pos.to_array();
         }
     }
 }
@@ -212,7 +235,7 @@ pub(super) fn regen_edge_mesh(
     mut q_node: Query<(Entity, &mut GNode, &Transform, &Sprite), With<GNode>>,
     mut q_edge: Query<(&mut GEdge, &Transform, &Sprite)>,
 ) {
-    for _ in events.iter() {
+    if let Some(_) = events.iter().last() {
         let mesh: &mut Mesh = meshes.get_mut(&graph.edge_mesh_handle.0).unwrap();
 
         // There needs to be some initial values here or the mesh gets optimized
@@ -225,16 +248,16 @@ pub(super) fn regen_edge_mesh(
             [0.0, 0.0, 0.0, 1.0],
         ];
         let mut indices: Vec<u32> = vec![0, 1, 2];
+        let mut index = 3;
 
-        for (mut index, (mut edge, edge_t, handle_sprite)) in q_edge.iter_mut().enumerate() {
-            index += 1;
-            {
-                let (_, _, start_t, start_sprite) = q_node.get(edge.start).unwrap();
-                let (_, _, end_t, end_sprite) = q_node.get(edge.end).unwrap();
-                let start = start_t.translation;
-                let handle = edge_t.translation;
-                let end = end_t.translation;
+        for (mut edge, edge_t, handle_sprite) in q_edge.iter_mut() {
+            let (_, _, start_t, start_sprite) = q_node.get(edge.start).unwrap();
+            let (_, _, end_t, end_sprite) = q_node.get(edge.end).unwrap();
+            let start = start_t.translation;
+            let handle = edge_t.translation;
+            let end = end_t.translation;
 
+            if edge.start != edge.end {
                 // let start_end = (start_t.translation - end_t.translation).normalize();
                 // let start_mid = (start_t.translation - edge_t.translation).normalize();
                 // let end_mid = (end_t.translation - edge_t.translation).normalize();
@@ -257,20 +280,25 @@ pub(super) fn regen_edge_mesh(
                 colors.extend_from_slice(&[start_color.into(), handle_color.into(), end_color.into()]);
 
                 indices.extend_from_slice(&[
-                    index as u32 * 3,
-                    index as u32 * 3 + 1,
-                    index as u32 * 3 + 2,
+                    index,
+                    index + 1,
+                    index + 2,
                 ]);
-            }
 
-            edge.offset = index * 3 + 1;
-            {
-                let mut start_node = q_node.get_mut(edge.start).unwrap().1;
-                start_node.offsets.push((index * 3, GNodeSide::Start));
+                edge.offset = Some(index as usize + 1);
+                {
+                    let mut start_node = q_node.get_mut(edge.start).unwrap().1;
+                    start_node.offsets.push((index as usize, GNodeSide::Start));
+                }
+                if edge.start != edge.end {
+                    let mut end_node = q_node.get_mut(edge.end).unwrap().1;
+                    end_node.offsets.push((index as usize + 2, GNodeSide::End));
+                }
+
+                index += 3;
             }
-            {
-                let mut end_node = q_node.get_mut(edge.end).unwrap().1;
-                end_node.offsets.push((index * 3 + 2, GNodeSide::End));
+            // Else, this is a loop
+            else {
             }
         }
 

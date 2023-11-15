@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use bevy::render::mesh::Indices;
 use bevy::render::render_resource::PrimitiveTopology;
+use bevy::render::view::NoFrustumCulling;
 use bevy::sprite::{MaterialMesh2dBundle, Mesh2dHandle};
 use bevy::{prelude::*, sprite::Material2dPlugin};
 
@@ -11,14 +12,12 @@ use super::event;
 use super::event::*;
 use super::Graph;
 
-#[derive(Resource, Default)]
-pub struct ImageCache(pub(super) HashMap<String, Handle<Image>>);
+#[derive(Resource, Default, Deref)]
+pub struct ImageCache(HashMap<String, Handle<Image>>);
 
 pub struct GraphPlugin;
 impl Plugin for GraphPlugin {
     fn build(&self, app: &mut App) {
-        use bevy::render::view::VisibilitySystems::CheckVisibility;
-
         app.add_plugins(Material2dPlugin::<materials::CurveMaterial>::default())
             .add_asset::<materials::CurveMaterial>()
             .add_systems(Startup, (GraphPlugin::init, GraphPlugin::init_graph))
@@ -40,10 +39,6 @@ impl Plugin for GraphPlugin {
                     event::regen_edge_mesh,
                     event::item_selected_event,
                 ),
-            )
-            .add_systems(
-                PostUpdate,
-                GraphPlugin::force_mesh_visible.in_set(CheckVisibility),
             );
     }
 }
@@ -56,6 +51,7 @@ impl GraphPlugin {
     ) {
         img_cache.0.insert("node".into(), assets.load("sprites/node30.png"));
         img_cache.0.insert("handle".into(), assets.load("sprites/handle30.png"));
+        img_cache.0.insert("handle_directed".into(), assets.load("sprites/handle_directed30.png"));
         img_cache.0.insert("nodeSelected".into(), assets.load("sprites/node_selected30.png"));
         img_cache.0.insert("handleSelected".into(), assets.load("sprites/handle_selected30.png"));
     }
@@ -66,11 +62,8 @@ impl GraphPlugin {
         mut curve_mats: ResMut<Assets<materials::CurveMaterial>>,
     ) {
         let mut mesh = Mesh::new(PrimitiveTopology::TriangleList);
-        // mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, Vec::<[f32; 3]>::new());
-        // mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, Vec::<[f32; 2]>::new());
-        // // mesh.insert_attribute(Mesh::ATTRIBUTE_COLOR, Vec::<[f32; 4]>::new());
-        // mesh.set_indices(None);
 
+        // The mesh refuses to render if we don't put placeholder values here
         mesh.insert_attribute(
             Mesh::ATTRIBUTE_POSITION,
             vec![[-0.5, -0.5, 0.0], [0.5, -0.5, 0.0], [0.0, 0.5, 0.0]],
@@ -93,12 +86,12 @@ impl GraphPlugin {
 
         let edge_mesh_handle: Mesh2dHandle = meshes.add(mesh).into();
         let edge_mesh = commands
-            .spawn(MaterialMesh2dBundle {
+            .spawn((MaterialMesh2dBundle {
                 material: mat_test,
                 mesh: edge_mesh_handle.clone(),
                 transform: Transform::default().with_translation(Vec3::new(0.0, 0.0, -1.0)),
                 ..Default::default()
-            })
+            }, NoFrustumCulling))
             .id();
 
         let graph = Graph {
@@ -106,15 +99,9 @@ impl GraphPlugin {
             edge_mesh,
             adjacencies: HashMap::new(),
             degree: 0,
+            directed: false
         };
 
         commands.insert_resource(graph);
-    }
-
-    fn force_mesh_visible(graph: Res<Graph>, mut q_mesh: Query<&mut ComputedVisibility>) {
-        q_mesh
-            .get_mut(graph.edge_mesh)
-            .unwrap()
-            .set_visible_in_view();
     }
 }

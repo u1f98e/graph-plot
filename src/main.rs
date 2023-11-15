@@ -1,7 +1,7 @@
 use bevy::{
     asset::ChangeWatcher,
     prelude::*,
-    render::{mesh::Indices, render_resource::PrimitiveTopology},
+    render::{mesh::Indices, render_resource::PrimitiveTopology, RenderPlugin, settings::{WgpuSettings, PowerPreference}},
     sprite::{MaterialMesh2dBundle, Mesh2dHandle},
 };
 use bevy_egui::EguiPlugin;
@@ -78,8 +78,6 @@ fn setup(
 }
 
 fn update(
-    time: Res<Time>,
-    mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     q_mesh: Query<&Mesh2dHandle, With<TestMesh>>,
 ) {
@@ -110,18 +108,13 @@ fn update(
 
 fn main() {
     App::new()
-        .add_plugins(DefaultPlugins.set(AssetPlugin {
-            watch_for_changes: ChangeWatcher::with_delay(std::time::Duration::from_secs(2)),
-            ..default()
+        .add_plugins(DefaultPlugins.set(RenderPlugin {
+            wgpu_settings: WgpuSettings {
+                power_preference: PowerPreference::LowPower,
+                ..Default::default()
+            }
         }))
         .insert_resource(bevy::winit::WinitSettings::desktop_app())
-        // .insert_resource(bevy::winit::WinitSettings {
-        //     focused_mode: bevy::winit::UpdateMode::Continuous,
-        //     unfocused_mode: bevy::winit::UpdateMode::ReactiveLowPower {
-        //         max_wait: std::time::Duration::from_millis(10),
-        //     },
-        //     ..default()
-        // })
         .add_plugins(EguiPlugin)
         .add_plugins(graph::plugin::GraphPlugin)
         .add_systems(Startup, setup)
