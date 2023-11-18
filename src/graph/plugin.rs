@@ -36,10 +36,10 @@ impl Plugin for GraphPlugin {
                     event::add_edge_event,
                     event::remove_item_event,
                     event::move_item_event,
-                    event::regen_edge_mesh,
                     event::item_selected_event,
                 ),
-            );
+            )
+            .add_systems(PostUpdate, event::regen_edge_mesh);
     }
 }
 

@@ -32,9 +32,7 @@ impl Grabbable {
 
     pub fn contains(&self, pos: Vec3, point: Vec3) -> bool {
         match *self {
-            Grabbable::Circle { radius } => {
-                pos.distance(point) <= radius
-            },
+            Grabbable::Circle { radius } => pos.distance(point) <= radius,
             Grabbable::Rect { width, height } => {
                 let width_2 = width / 2.0;
                 let min_x = pos.x - width_2;
@@ -44,7 +42,7 @@ impl Grabbable {
                 let max_y = pos.x + height_2;
 
                 point.x >= min_x && point.x <= max_x && point.y >= min_y && point.y <= max_y
-            },
+            }
         }
     }
 }
@@ -71,13 +69,11 @@ pub struct NodeLabelBundle {
 enum GNodeSide {
     Start,
     End,
-    Loop
+    Loop,
 }
 
 #[derive(Component, Default)]
-pub struct GNode {
-    offsets: Vec<(usize, GNodeSide)>,
-}
+pub struct GNode;
 
 #[derive(Bundle)]
 struct GNodeBundle {
@@ -91,7 +87,21 @@ pub struct GEdge {
     start: Entity,
     end: Entity,
     weight: i32,
-    offset: Option<usize>
+    offset: Option<usize>,
+}
+
+impl GEdge {
+    pub fn is_loop(&self) -> bool {
+        self.start == self.end
+    }
+
+    pub fn size_in_mesh(&self) -> usize {
+        if self.is_loop() {
+            4
+        } else {
+            3
+        }
+    }
 }
 
 #[derive(Default, Bundle)]
@@ -112,7 +122,7 @@ pub struct Graph {
     degree: usize,
     edge_mesh_handle: Mesh2dHandle,
     edge_mesh: Entity,
-    pub directed: bool
+    pub directed: bool,
 }
 
 impl Graph {
@@ -129,7 +139,6 @@ impl Graph {
     }
 
     fn remove_node(&mut self, node: &Entity) {
-        self.degree -= self.adjacencies[&node].len();
         self.adjacencies.remove(&node);
     }
 
@@ -142,9 +151,13 @@ impl Graph {
     }
 
     fn remove_edge(&mut self, edge: Entity, start: &Entity, end: &Entity) {
-        self.adjacencies.get_mut(start).unwrap().retain(|&x| x != edge);
+        if let Some(a) = self.adjacencies.get_mut(start) {
+            a.retain(|&x| x != edge);
+        }
         if start != end {
-            self.adjacencies.get_mut(end).unwrap().retain(|&x| x != edge);
+            if let Some(a) = self.adjacencies.get_mut(end) {
+                a.retain(|&x| x != edge);
+            }
         }
         self.degree -= 2;
     }

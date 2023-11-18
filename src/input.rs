@@ -72,9 +72,7 @@ pub(crate) fn key_input_sys(
     mut ev_regen: EventWriter<RegenEdgeMesh>,
     mut ev_selected: EventWriter<ItemSelectedEvent>,
 ) {
-    for KeyboardInput {
-        key_code, state, ..
-    } in key_evr.iter()
+    for KeyboardInput { key_code, state, ..  } in key_evr.iter()
     {
         if egui_has_keyboard(&mut q_egui) {
             continue;
