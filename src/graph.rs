@@ -12,7 +12,6 @@ static EDGE_VERTEX_OFFSET: f32 = 5.0;
 #[derive(Component)]
 pub enum Grabbable {
     Circle { radius: f32 },
-    Rect { width: f32, height: f32 },
 }
 
 impl Default for Grabbable {
@@ -20,51 +19,6 @@ impl Default for Grabbable {
         Self::Circle { radius: 15.0 }
     }
 }
-
-impl Grabbable {
-    pub fn new_circle(radius: f32) -> Self {
-        Self::Circle { radius }
-    }
-
-    pub fn new_rect(width: f32, height: f32) -> Self {
-        Self::Rect { width, height }
-    }
-
-    pub fn contains(&self, pos: Vec3, point: Vec3) -> bool {
-        match *self {
-            Grabbable::Circle { radius } => pos.distance(point) <= radius,
-            Grabbable::Rect { width, height } => {
-                let width_2 = width / 2.0;
-                let min_x = pos.x - width_2;
-                let max_x = pos.x + width_2;
-                let height_2 = width / 2.0;
-                let min_y = pos.x - height_2;
-                let max_y = pos.x + height_2;
-
-                point.x >= min_x && point.x <= max_x && point.y >= min_y && point.y <= max_y
-            }
-        }
-    }
-}
-
-#[derive(Component)]
-pub struct NodeLabel;
-
-#[derive(Bundle)]
-pub struct NodeLabelBundle {
-    pub label: NodeLabel,
-    pub grab: Grabbable,
-    pub text: Text2dBundle,
-}
-
-// impl Default for NodeLabelBundle {
-//     fn default() -> Self {
-//         Self {
-//             label: NodeLabel(),
-//             grab: Grabbable::,
-//         }
-//     }
-// }
 
 enum GNodeSide {
     Start,
@@ -86,8 +40,8 @@ struct GNodeBundle {
 pub struct GEdge {
     start: Entity,
     end: Entity,
-    weight: i32,
     offset: Option<usize>,
+    pub weight: i32,
 }
 
 impl GEdge {

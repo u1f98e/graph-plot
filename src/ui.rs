@@ -87,7 +87,6 @@ pub(crate) fn egui_sys(
 
                     for &child in children.iter() {
                         if let Ok((mut label, _)) = q_labels.get_mut(child) {
-                            ui.label("Label:");
                             ui.text_edit_singleline(&mut label.sections[0].value);
                         }
                     }
@@ -96,8 +95,16 @@ pub(crate) fn egui_sys(
                         "Degree: {}",
                         graph.adjacencies.get(&entity).unwrap().len()
                     ));
-                } else if let Ok((edge, _, _)) = q_edge.get_mut(entity) {
+                } else if let Ok((edge, _, children)) = q_edge.get_mut(entity) {
                     ui.label(format!("Edge: ID = {}", entity.index()));
+
+                    for &child in children.iter() {
+                        if let Ok((mut label, _)) = q_labels.get_mut(child) {
+                            ui.text_edit_singleline(&mut label.sections[0].value);
+                        }
+                    }
+
+                    ui.label(format!("Weight: {}", edge.weight));
                 }
             }
         }
