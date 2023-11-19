@@ -118,11 +118,17 @@ struct GEdgeBundle {
 
 #[derive(Resource)]
 pub struct Graph {
-    adjacencies: HashMap<Entity, Vec<Entity>>, // <Node, Vec<Edge>>
-    degree: usize,
-    edge_mesh_handle: Mesh2dHandle,
-    edge_mesh: Entity,
+    pub adjacencies: HashMap<Entity, Vec<Entity>>, // <Node, Vec<Edge>>
+    pub degree: usize,
+    pub edge_mesh_handle: Mesh2dHandle,
+    pub edge_mesh: Entity,
+
     pub directed: bool,
+    pub components: u32,
+    pub last_node_num: u32,
+    pub last_edge_num: u32,
+
+    pub show_labels: bool
 }
 
 impl Graph {
@@ -135,6 +141,7 @@ impl Graph {
     }
 
     fn add_node(&mut self, node: Entity) {
+        self.last_node_num += 1;
         self.adjacencies.insert(node, Vec::new());
     }
 
@@ -143,6 +150,7 @@ impl Graph {
     }
 
     fn add_edge(&mut self, edge: Entity, start: &Entity, end: &Entity) {
+        self.last_edge_num += 1;
         self.adjacencies.get_mut(start).unwrap().push(edge);
         if start != end {
             self.adjacencies.get_mut(end).unwrap().push(edge);

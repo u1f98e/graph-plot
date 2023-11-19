@@ -4,6 +4,7 @@ use bevy::render::mesh::Indices;
 use bevy::render::render_resource::PrimitiveTopology;
 use bevy::render::view::NoFrustumCulling;
 use bevy::sprite::{MaterialMesh2dBundle, Mesh2dHandle};
+use bevy::transform::commands;
 use bevy::{prelude::*, sprite::Material2dPlugin};
 
 use crate::materials;
@@ -14,6 +15,9 @@ use super::Graph;
 
 #[derive(Resource, Default, Deref)]
 pub struct ImageCache(HashMap<String, Handle<Image>>);
+
+#[derive(Resource, Default, Deref)]
+pub struct DefaultTextStyle(TextStyle);
 
 pub struct GraphPlugin;
 impl Plugin for GraphPlugin {
@@ -48,12 +52,21 @@ impl GraphPlugin {
     fn init(
         assets: ResMut<AssetServer>,
         mut img_cache: ResMut<ImageCache>,
+        mut commands: Commands,
     ) {
-        img_cache.0.insert("node".into(), assets.load("sprites/node30.png"));
-        img_cache.0.insert("handle".into(), assets.load("sprites/handle30.png"));
-        img_cache.0.insert("handle_directed".into(), assets.load("sprites/handle_directed30.png"));
-        img_cache.0.insert("nodeSelected".into(), assets.load("sprites/node_selected30.png"));
-        img_cache.0.insert("handleSelected".into(), assets.load("sprites/handle_selected30.png"));
+        img_cache.0.insert("node".into(), assets.load("sprites/node.png"));
+        img_cache.0.insert("node-sel".into(), assets.load("sprites/node-sel.png"));
+        img_cache.0.insert("handle".into(), assets.load("sprites/handle.png"));
+        img_cache.0.insert("handle-dir".into(), assets.load("sprites/handle-dir.png"));
+        img_cache.0.insert("handle-sel".into(), assets.load("sprites/handle-sel.png"));
+        img_cache.0.insert("handle-dir-sel".into(), assets.load("sprites/handle-dir-sel.png"));
+
+        let text_style = TextStyle {
+            font: assets.load("fonts/FiraSans-Regular.ttf"),
+            font_size: 25.0,
+            color: Color::WHITE,
+        };
+        commands.insert_resource(DefaultTextStyle(text_style));
     }
 
     fn init_graph(
@@ -99,7 +112,11 @@ impl GraphPlugin {
             edge_mesh,
             adjacencies: HashMap::new(),
             degree: 0,
-            directed: false
+            directed: false,
+            components: 0,
+            last_node_num: 0,
+            last_edge_num: 0,
+            show_labels: false,
         };
 
         commands.insert_resource(graph);

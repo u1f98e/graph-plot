@@ -18,12 +18,14 @@ pub enum CursorMode {
     CreateEdge,
     Remove,
     Paint,
+    Info
 }
 
 impl core::fmt::Display for CursorMode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             CursorMode::Normal => write!(f, "Drag/Pan"),
+            CursorMode::Info => write!(f, "Node Info"),
             CursorMode::CreateNode => write!(f, "Create Node"),
             CursorMode::CreateEdge => write!(f, "Create Edge"),
             CursorMode::Remove => write!(f, "Erase"),
@@ -224,6 +226,11 @@ pub(crate) fn mouse_button_sys(
                             sprite.color = cursor.paint_color;
                             ev_regen_mesh.send(RegenEdgeMesh());
                         }
+                    }
+                }
+                CursorMode::Info => {
+                    if let Some(entity) = get_closest_grab(&cursor, q_grab_combined) {
+                        ev_selected.send(ItemSelectedEvent::Selected(entity));
                     }
                 }
             }

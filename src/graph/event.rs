@@ -6,7 +6,15 @@ use bevy::{
 use crate::input::CursorInfo;
 use crate::types::*;
 
-use super::*;
+use super::{plugin::DefaultTextStyle, *};
+
+pub(crate) fn get_visibility(is_visible: bool) -> Visibility {
+    if is_visible {
+        Visibility::Inherited
+    } else {
+        Visibility::Hidden
+    }
+}
 
 #[derive(Event)]
 pub struct AddNodeEvent(pub Vec2);
@@ -34,15 +42,35 @@ pub(crate) fn item_selected_event(
     mut cursor: ResMut<CursorInfo>,
     mut q_node: Query<&mut Handle<Image>, GNodeExclusive>,
     mut q_edge: Query<&mut Handle<Image>, GEdgeExclusive>,
+    graph: Res<Graph>,
     cache: Res<ImageCache>,
 ) {
     for event in events.iter() {
         match event {
             ItemSelectedEvent::Selected(entity) => {
+                if let Some(entity) = cursor.selected {
+                    if let Ok(mut texture) = q_node.get_mut(entity) {
+                        *texture = cache.get("node").unwrap().clone();
+                    } else if let Ok(mut texture) = q_edge.get_mut(entity) {
+                        *texture = if graph.directed {
+                            cache.get("handle-dir")
+                        } else {
+                            cache.get("handle")
+                        }
+                        .unwrap()
+                        .clone();
+                    }
+                }
                 if let Ok(mut texture) = q_node.get_mut(*entity) {
-                    *texture = cache.get("nodeSelected").unwrap().clone();
+                    *texture = cache.get("node-sel").unwrap().clone();
                 } else if let Ok(mut texture) = q_edge.get_mut(*entity) {
-                    *texture = cache.get("edgeSelected").unwrap().clone();
+                    *texture = if graph.directed {
+                        cache.get("handle-dir-sel")
+                    } else {
+                        cache.get("handle-sel")
+                    }
+                    .unwrap()
+                    .clone();
                 }
                 cursor.selected = Some(*entity);
             }
@@ -51,7 +79,13 @@ pub(crate) fn item_selected_event(
                     if let Ok(mut texture) = q_node.get_mut(entity) {
                         *texture = cache.get("node").unwrap().clone();
                     } else if let Ok(mut texture) = q_edge.get_mut(entity) {
-                        *texture = cache.get("edge").unwrap().clone();
+                        *texture = if graph.directed {
+                            cache.get("handle-dir")
+                        } else {
+                            cache.get("handle")
+                        }
+                        .unwrap()
+                        .clone();
                     }
                 }
                 cursor.selected = None;
@@ -66,6 +100,7 @@ pub(super) fn add_node_event(
     mut graph: ResMut<Graph>,
     mut commands: Commands,
     img_cache: Res<ImageCache>,
+    text_style: Res<DefaultTextStyle>,
 ) {
     for AddNodeEvent(pos) in events.iter() {
         let transform = Transform::default().with_translation(Vec3::new(pos.x, pos.y, 0.0));
@@ -78,6 +113,14 @@ pub(super) fn add_node_event(
                     ..Default::default()
                 },
                 grab: Grabbable::default(),
+            })
+            .with_children(|p| {
+                p.spawn(Text2dBundle {
+                    text: Text::from_section(format!("v{}", graph.last_node_num), text_style.clone()),
+                    transform: Transform::from_translation(Vec3::new(0.0, 30.0, 1.0)),
+                    visibility: get_visibility(graph.show_labels),
+                    ..Default::default()
+                });
             })
             .id();
 
@@ -93,6 +136,7 @@ pub(super) fn add_edge_event(
     mut commands: Commands,
     q_nodes: Query<(Entity, &Transform), With<GNode>>,
     cache: Res<ImageCache>,
+    text_style: Res<DefaultTextStyle>,
 ) {
     for AddEdgeEvent(a, b) in events.iter() {
         let (start, start_t) = q_nodes.get(*a).unwrap();
@@ -120,11 +164,11 @@ pub(super) fn add_edge_event(
                     Vec3::Z,
                     (end_t.translation - start_t.translation).angle_between(Vec3::X) * sign,
                 ))
-                .with_scale(Vec3::splat(0.5))
+                .with_scale(Vec3::splat(0.75))
         };
 
         let texture = if graph.directed {
-            cache.get("handle_directed").unwrap().clone()
+            cache.get("handle-dir").unwrap().clone()
         } else {
             cache.get("handle").unwrap().clone()
         };
@@ -145,6 +189,14 @@ pub(super) fn add_edge_event(
                         ..Default::default()
                     },
                 },
+            })
+            .with_children(|p| {
+                p.spawn(Text2dBundle {
+                    text: Text::from_section(format!("e{}", graph.last_node_num), text_style.clone()),
+                    transform: Transform::from_translation(Vec3::new(0.0, 30.0, 1.0)),
+                    visibility: get_visibility(graph.show_labels),
+                    ..Default::default()
+                });
             })
             .id();
 
@@ -192,11 +244,11 @@ pub(super) fn remove_item_event(
                     }
                 }
             }
-            commands.entity(*edge_e).despawn();
+            commands.entity(*edge_e).despawn_recursive();
         }
         removed_edges.clear();
 
-        commands.entity(*entity).despawn();
+        commands.entity(*entity).despawn_recursive();
         regen_ev.send(RegenEdgeMesh());
     }
 }
@@ -316,7 +368,7 @@ pub(super) fn regen_edge_mesh(
     mut events: EventReader<RegenEdgeMesh>,
     graph: Res<Graph>,
     mut meshes: ResMut<Assets<Mesh>>,
-    mut q_node: Query<(Entity, &mut GNode, &Transform, &Sprite), With<GNode>>,
+    q_node: Query<(Entity, &mut GNode, &Transform, &Sprite), With<GNode>>,
     mut q_edge: Query<(&mut GEdge, &Transform, &Sprite)>,
 ) {
     if let Some(_) = events.iter().last() {
@@ -332,7 +384,6 @@ pub(super) fn regen_edge_mesh(
             [0.0, 0.0, 0.0, 1.0],
         ];
         let mut indices: Vec<u32> = vec![0, 1, 2];
-        let mut index = 3;
 
         for (mut edge, edge_t, handle_sprite) in q_edge.iter_mut() {
             let (_, _, start_t, start_sprite) = q_node.get(edge.start).unwrap();
