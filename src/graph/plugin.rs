@@ -27,12 +27,10 @@ impl Plugin for GraphPlugin {
             .add_systems(Startup, (GraphPlugin::init, GraphPlugin::init_graph))
             .init_resource::<ImageCache>();
 
-        app.add_event::<AddNodeEvent>()
-            .add_event::<AddEdgeEvent>()
-            .add_event::<RemoveItemEvent>()
+        app.add_event::<GraphEvent>()
             .add_event::<ItemMovedEvent>()
             .add_event::<RegenEdgeMesh>()
-            .add_event::<ItemSelectedEvent>()
+            .add_event::<AnalyzeGraphEvent>()
             .add_systems(
                 Update,
                 (
@@ -41,6 +39,8 @@ impl Plugin for GraphPlugin {
                     event::remove_item_event,
                     event::move_item_event,
                     event::item_selected_event,
+                    event::draw_spanning_tree,
+                    event::reset_colors_event,
                 ),
             )
             .add_systems(PostUpdate, event::regen_edge_mesh);
@@ -110,7 +110,8 @@ impl GraphPlugin {
         let graph = Graph {
             edge_mesh_handle,
             edge_mesh,
-            adjacencies: HashMap::new(),
+            node_edges: HashMap::new(),
+            edge_nodes: HashMap::new(),
             degree: 0,
             directed: false,
             components: 0,

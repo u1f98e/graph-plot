@@ -7,7 +7,7 @@ use bevy::{
 };
 use bevy_egui::EguiContext;
 
-use crate::{graph::event::*, types::*};
+use crate::{graph::{event::*, NodeE}, types::*};
 use crate::{graph::Grabbable, MainCamera};
 
 #[derive(Copy, Clone, Default, PartialEq, Eq)]
@@ -18,7 +18,8 @@ pub enum CursorMode {
     CreateEdge,
     Remove,
     Paint,
-    Info
+    Info,
+    SpanningTree,
 }
 
 impl core::fmt::Display for CursorMode {
@@ -30,6 +31,7 @@ impl core::fmt::Display for CursorMode {
             CursorMode::CreateEdge => write!(f, "Create Edge"),
             CursorMode::Remove => write!(f, "Erase"),
             CursorMode::Paint => write!(f, "Paint"),
+            CursorMode::SpanningTree => write!(f, "Draw Spanning Tree"),
         }
     }
 }
@@ -45,11 +47,11 @@ pub struct CursorInfo {
 }
 
 impl CursorInfo {
-    pub fn set_mode(&mut self, mode: &CursorMode, ev_selected: &mut EventWriter<ItemSelectedEvent>) {
+    pub fn set_mode(&mut self, mode: &CursorMode, ev_selected: &mut EventWriter<GraphEvent>) {
         self.mode = *mode;
 
         if *mode != CursorMode::Normal {
-            ev_selected.send(ItemSelectedEvent::Deselected);
+            ev_selected.send(GraphEvent::ItemDeselected);
         }
     }
 }
@@ -71,8 +73,8 @@ pub(crate) fn key_input_sys(
     mut key_evr: EventReader<KeyboardInput>,
     mut cursor: ResMut<CursorInfo>,
     mut q_egui: Query<&mut EguiContext>,
+    mut ev_graph: EventWriter<GraphEvent>,
     mut ev_regen: EventWriter<RegenEdgeMesh>,
-    mut ev_selected: EventWriter<ItemSelectedEvent>,
 ) {
     for KeyboardInput { key_code, state, ..  } in key_evr.iter()
     {
@@ -83,11 +85,12 @@ pub(crate) fn key_input_sys(
         if state.is_pressed() {
             if let Some(key) = key_code {
                 match key {
-                    KeyCode::S => cursor.set_mode(&CursorMode::CreateNode, &mut ev_selected),
-                    KeyCode::E => cursor.set_mode(&CursorMode::CreateEdge, &mut ev_selected),
-                    KeyCode::W => cursor.set_mode(&CursorMode::Normal, &mut ev_selected),
-                    KeyCode::D => cursor.set_mode(&CursorMode::Remove, &mut ev_selected),
-                    KeyCode::A => cursor.set_mode(&CursorMode::Paint, &mut ev_selected),
+                    KeyCode::S => cursor.set_mode(&CursorMode::CreateNode, &mut ev_graph),
+                    KeyCode::E => cursor.set_mode(&CursorMode::CreateEdge, &mut ev_graph),
+                    KeyCode::W => cursor.set_mode(&CursorMode::Normal, &mut ev_graph),
+                    KeyCode::D => cursor.set_mode(&CursorMode::Remove, &mut ev_graph),
+                    KeyCode::A => cursor.set_mode(&CursorMode::Paint, &mut ev_graph),
+                    KeyCode::I => cursor.set_mode(&CursorMode::Info, &mut ev_graph),
                     KeyCode::R => {
                         ev_regen.send(RegenEdgeMesh());
                     }
@@ -152,12 +155,6 @@ where
                     closest_grab = Some(entity);
                 }
             }
-            _ => {
-                if closest_grab.is_none() {
-                    // Only grab rect if no other options
-                    closest_grab = Some(entity)
-                }
-            }
         }
     }
 
@@ -165,7 +162,7 @@ where
 }
 
 pub(crate) fn mouse_button_sys(
-    mut ev_mouse_button: EventReader<MouseButtonInput>,
+    mut events: EventReader<MouseButtonInput>,
     mut cursor: ResMut<CursorInfo>,
     query: (
         Query<&mut EguiContext>,
@@ -174,15 +171,13 @@ pub(crate) fn mouse_button_sys(
         Query<(Entity, &mut Sprite)>,
         Query<Entity, With<MainCamera>>,
     ),
-    mut ev_add_node: EventWriter<AddNodeEvent>,
-    mut ev_add_edge: EventWriter<AddEdgeEvent>,
-    mut ev_remove_graph_item: EventWriter<RemoveItemEvent>,
+    mut ev_graph: EventWriter<GraphEvent>,
     mut ev_regen_mesh: EventWriter<RegenEdgeMesh>,
-    mut ev_selected: EventWriter<ItemSelectedEvent>,
+    mut ev_analyze: EventWriter<AnalyzeGraphEvent>,
 ) {
     let (mut q_egui, q_node, q_handle, mut q_sprite, q_camera) = query;
 
-    for MouseButtonInput { button, state, .. } in ev_mouse_button.iter() {
+    for MouseButtonInput { button, state, .. } in events.iter() {
         if *button == MouseButton::Left && !state.is_pressed() {
             cursor.grabbed = None;
         }
@@ -202,22 +197,22 @@ pub(crate) fn mouse_button_sys(
                     }
                 }
                 CursorMode::CreateNode => {
-                    ev_add_node.send(AddNodeEvent(cursor.world_pos));
+                    ev_graph.send(GraphEvent::AddNode(cursor.world_pos));
                 }
                 CursorMode::CreateEdge => {
                     if let Some(entity) = get_closest_grab(&cursor, q_node.iter()) {
                         if let Some(selected_entity) = cursor.selected {
-                            ev_add_edge.send(AddEdgeEvent(selected_entity, entity));
-                            ev_selected.send(ItemSelectedEvent::Deselected);
+                            ev_graph.send(GraphEvent::AddEdge(NodeE(selected_entity), NodeE(entity)));
+                            ev_graph.send(GraphEvent::ItemDeselected);
                         } else {
                             cursor.selected = Some(entity);
-                            ev_selected.send(ItemSelectedEvent::Selected(entity));
+                            ev_graph.send(GraphEvent::ItemSelected(entity));
                         }
                     }
                 }
                 CursorMode::Remove => {
                     if let Some(entity) = get_closest_grab(&cursor, q_grab_combined) {
-                        ev_remove_graph_item.send(RemoveItemEvent(entity));
+                        ev_graph.send(GraphEvent::RemoveItem(entity));
                     }
                 }
                 CursorMode::Paint => {
@@ -230,7 +225,12 @@ pub(crate) fn mouse_button_sys(
                 }
                 CursorMode::Info => {
                     if let Some(entity) = get_closest_grab(&cursor, q_grab_combined) {
-                        ev_selected.send(ItemSelectedEvent::Selected(entity));
+                        ev_graph.send(GraphEvent::ItemSelected(entity));
+                    }
+                }
+                CursorMode::SpanningTree => {
+                    if let Some(entity) = get_closest_grab(&cursor, q_node.iter()) {
+                        ev_analyze.send(AnalyzeGraphEvent::SpanningTree(NodeE(entity)));
                     }
                 }
             }

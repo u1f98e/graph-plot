@@ -2,7 +2,7 @@ use bevy::prelude::*;
 use bevy_egui::{egui, EguiContexts};
 
 use crate::{
-    graph::{event::{ItemSelectedEvent, get_visibility}, plugin::ImageCache, GEdge, GNode, Graph},
+    graph::{event::{GraphEvent, get_visibility}, plugin::ImageCache, GEdge, GNode, Graph, NodeE},
     input::{CursorInfo, CursorMode},
     types::{GEdgeExclusive, GNodeExclusive},
 };
@@ -14,7 +14,7 @@ pub(crate) fn egui_sys(
     q_node: Query<(&GNode, &Children), GNodeExclusive>,
     mut q_edge: Query<(&GEdge, &mut Handle<Image>, &Children), GEdgeExclusive>,
     mut q_labels: Query<(&mut Text, &mut Visibility), With<Parent>>,
-    mut ev_selected: EventWriter<ItemSelectedEvent>,
+    mut ev_selected: EventWriter<GraphEvent>,
     img_cache: Res<ImageCache>,
 ) {
     egui::Window::new("Graph Plotter").show(contexts.ctx_mut(), |ui| {
@@ -25,7 +25,7 @@ pub(crate) fn egui_sys(
         let mut directed = graph.directed;
         if ui.checkbox(&mut directed, "Directed").changed() {
             graph.directed = directed;
-            ev_selected.send(ItemSelectedEvent::Deselected);
+            ev_selected.send(GraphEvent::ItemDeselected);
             for (_, mut handle, _) in q_edge.iter_mut() {
                 *handle = if directed {
                     img_cache.get("handle-dir").unwrap().clone()
@@ -39,6 +39,10 @@ pub(crate) fn egui_sys(
             for (_, mut label_vis) in q_labels.iter_mut() {
                 *label_vis = get_visibility(graph.show_labels);
             }
+        }
+
+        if ui.button("Reset Colors").clicked() {
+            ev_selected.send(GraphEvent::ResetColors);
         }
 
         let mut mode = cursor.mode;
@@ -71,6 +75,11 @@ pub(crate) fn egui_sys(
                     CursorMode::Paint,
                     format!("{}", CursorMode::Paint),
                 );
+                ui.selectable_value(
+                    &mut mode,
+                    CursorMode::SpanningTree,
+                    format!("{}", CursorMode::SpanningTree),
+                );
             });
         if mode != cursor.mode {
             cursor.set_mode(&mode, &mut ev_selected);
@@ -93,7 +102,7 @@ pub(crate) fn egui_sys(
 
                     ui.label(format!(
                         "Degree: {}",
-                        graph.adjacencies.get(&entity).unwrap().len()
+                        graph.node_edges.get(&NodeE(entity)).unwrap().len()
                     ));
                 } else if let Ok((edge, _, children)) = q_edge.get_mut(entity) {
                     ui.label(format!("Edge: ID = {}", entity.index()));
@@ -109,4 +118,21 @@ pub(crate) fn egui_sys(
             }
         }
     });
+}
+
+fn egui_matrix(ui: &mut egui::Ui, data: Vec<Vec<f32>>) {
+    for row in data.iter() {
+        ui.horizontal(|ui| {
+            for col in row.iter() {
+                ui.label(format!("{:.2}", col));
+            }
+        });
+    }
+}
+
+fn egui_graph_info(ui: &mut egui::Ui, graph: &Graph) {
+    ui.label(format!("Vertices: {}", graph.node_count()));
+    ui.label(format!("Edges: {}", graph.degree() / 2));
+    ui.label(format!("Total Degree: {}", graph.degree()));
+    ui.label(format!("Components: {}", graph.components));
 }
