@@ -2,25 +2,47 @@ use bevy::prelude::*;
 use bevy_egui::{egui, EguiContexts};
 
 use crate::{
-    graph::{event::{GraphEvent, get_visibility}, plugin::ImageCache, GEdge, GNode, Graph, NodeE},
+    graph::{event::{GraphEvent, get_visibility}, plugin::ImageCache, GEdge, GNode, Graph, NodeE, EdgeE},
     input::{CursorInfo, CursorMode},
     types::{GEdgeExclusive, GNodeExclusive},
 };
+
+#[derive(Default, Resource)]
+pub enum UiItemInfo {
+    #[default]
+    None,
+    Node {
+        node_e: Entity,
+        label: Option<Entity>
+    },
+    Edge {
+        edge: GEdge,
+        edge_e: Entity,
+        is_bridge: bool,
+        label: Option<Entity>
+    },
+}
 
 pub(crate) fn egui_sys(
     mut contexts: EguiContexts,
     mut cursor: ResMut<CursorInfo>,
     mut graph: ResMut<Graph>,
-    q_node: Query<(&GNode, &Children), GNodeExclusive>,
-    mut q_edge: Query<(&GEdge, &mut Handle<Image>, &Children), GEdgeExclusive>,
-    mut q_labels: Query<(&mut Text, &mut Visibility), With<Parent>>,
-    mut ev_selected: EventWriter<GraphEvent>,
+    mut info_item: ResMut<UiItemInfo>,
     img_cache: Res<ImageCache>,
+    mut ev_selected: EventWriter<GraphEvent>,
+    queries: (
+        Query<(&GNode, &Children), GNodeExclusive>,
+        Query<(&GEdge, &mut Handle<Image>, &Children), GEdgeExclusive>,
+        Query<(&mut Text, &mut Visibility), With<Parent>>,
+    ),
 ) {
+    let (q_node, mut q_edge, mut q_labels) = queries;
+
     egui::Window::new("Graph Plotter").show(contexts.ctx_mut(), |ui| {
         ui.label(format!("Vertices: {}", graph.node_count()));
         ui.label(format!("Edges: {}", graph.degree() / 2));
         ui.label(format!("Total Degree: {}", graph.degree()));
+        ui.label(format!("Components: {}", graph.components()));
 
         let mut directed = graph.directed;
         if ui.checkbox(&mut directed, "Directed").changed() {
@@ -89,31 +111,57 @@ pub(crate) fn egui_sys(
             let mut color: [u8; 3] = cursor.paint_color.as_rgba_u8()[0..3].try_into().unwrap();
             egui::color_picker::color_edit_button_srgb(ui, &mut color);
             cursor.paint_color = Color::rgb_u8(color[0], color[1], color[2]);
-        } else if mode == CursorMode::Info {
-            if let Some(entity) = cursor.selected {
-                if let Ok((node, children)) = q_node.get(entity) {
-                    ui.label(format!("Node: ID = {}", entity.index()));
+        } 
+        else if mode == CursorMode::Info {
+            match &*info_item {
+                UiItemInfo::None => if let Some(entity) = cursor.selected {
+                    if let Ok((_node, children)) = q_node.get(entity) {
+                        let label = children.iter().find(|&child| {
+                            q_labels.get(*child).is_ok()
+                        }).copied();
 
-                    for &child in children.iter() {
-                        if let Ok((mut label, _)) = q_labels.get_mut(child) {
+                        *info_item = UiItemInfo::Node {
+                            node_e: entity,
+                            label
+                        };
+                    } else if let Ok((edge, _, children)) = q_edge.get_mut(entity) {
+                        let label = children.iter().find(|&child| {
+                            q_labels.get(*child).is_ok()
+                        }).copied();
+
+                        *info_item = UiItemInfo::Edge {
+                            edge: edge.clone(),
+                            edge_e: entity,
+                            label,
+                            is_bridge: graph.is_bridge(&EdgeE(entity)),
+                        };
+                    }
+                },
+                UiItemInfo::Node { node_e, label } => {
+                    ui.label(format!("Node: ID = {}", node_e.index()));
+
+                    if let Some(label) = label {
+                        if let Ok((mut label, _)) = q_labels.get_mut(*label) {
                             ui.text_edit_singleline(&mut label.sections[0].value);
                         }
                     }
 
                     ui.label(format!(
                         "Degree: {}",
-                        graph.node_edges.get(&NodeE(entity)).unwrap().len()
+                        graph.node_edges.get(&NodeE(*node_e)).unwrap().len()
                     ));
-                } else if let Ok((edge, _, children)) = q_edge.get_mut(entity) {
-                    ui.label(format!("Edge: ID = {}", entity.index()));
+                },
+                UiItemInfo::Edge { edge, edge_e, is_bridge, label } => {
+                    ui.label(format!("Edge: ID = {}", edge_e.index()));
 
-                    for &child in children.iter() {
-                        if let Ok((mut label, _)) = q_labels.get_mut(child) {
+                    if let Some(label) = label {
+                        if let Ok((mut label, _)) = q_labels.get_mut(*label) {
                             ui.text_edit_singleline(&mut label.sections[0].value);
                         }
                     }
 
                     ui.label(format!("Weight: {}", edge.weight));
+                    ui.label(format!("Is Bridge: {}", is_bridge));
                 }
             }
         }

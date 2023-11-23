@@ -4,7 +4,6 @@ use bevy::render::mesh::Indices;
 use bevy::render::render_resource::PrimitiveTopology;
 use bevy::render::view::NoFrustumCulling;
 use bevy::sprite::{MaterialMesh2dBundle, Mesh2dHandle};
-use bevy::transform::commands;
 use bevy::{prelude::*, sprite::Material2dPlugin};
 
 use crate::materials;
@@ -25,7 +24,8 @@ impl Plugin for GraphPlugin {
         app.add_plugins(Material2dPlugin::<materials::CurveMaterial>::default())
             .add_asset::<materials::CurveMaterial>()
             .add_systems(Startup, (GraphPlugin::init, GraphPlugin::init_graph))
-            .init_resource::<ImageCache>();
+            .init_resource::<ImageCache>()
+            .init_resource::<crate::ui::UiItemInfo>();
 
         app.add_event::<GraphEvent>()
             .add_event::<ItemMovedEvent>()
@@ -107,19 +107,7 @@ impl GraphPlugin {
             }, NoFrustumCulling))
             .id();
 
-        let graph = Graph {
-            edge_mesh_handle,
-            edge_mesh,
-            node_edges: HashMap::new(),
-            edge_nodes: HashMap::new(),
-            degree: 0,
-            directed: false,
-            components: 0,
-            last_node_num: 0,
-            last_edge_num: 0,
-            show_labels: false,
-        };
-
+        let graph = Graph::new(edge_mesh_handle, edge_mesh);
         commands.insert_resource(graph);
     }
 }

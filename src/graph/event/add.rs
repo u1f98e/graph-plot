@@ -89,8 +89,8 @@ pub(crate) fn add_edge_event(
 			let edge = commands
 				.spawn(GEdgeBundle {
 					edge: GEdge {
-						start: **a,
-						end: **b,
+						start: *a,
+						end: *b,
 						weight: 1,
 						offset: None,
 					},

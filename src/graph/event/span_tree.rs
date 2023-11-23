@@ -22,6 +22,7 @@ pub(crate) fn draw_spanning_tree(
 						sprite.color = Color::rgb(0.0, 1.0, 0.0);
 					}
 				}
+				false
 			});
 			ev_regen.send(RegenEdgeMesh());
 		}

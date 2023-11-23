@@ -5,12 +5,9 @@ mod mesh;
 
 pub(crate) use {add::*, remove::*, mesh::*, span_tree::*};
 
-use bevy::{
-    prelude::*,
-    render::mesh::{Indices, VertexAttributeValues},
-};
+use bevy::prelude::*;
 
-use crate::input::CursorInfo;
+use crate::{input::CursorInfo, ui::UiItemInfo};
 use crate::types::*;
 
 use super::{Graph, plugin::ImageCache, NodeE};
@@ -52,6 +49,7 @@ pub(crate) fn item_selected_event(
     mut q_edge: Query<&mut Handle<Image>, GEdgeExclusive>,
     graph: Res<Graph>,
     cache: Res<ImageCache>,
+    mut ui_info: ResMut<UiItemInfo>,
 ) {
     for event in events.iter() {
         match event {
@@ -100,6 +98,8 @@ pub(crate) fn item_selected_event(
             }
             _ => ()
         }
+
+        *ui_info = UiItemInfo::None;
     }
 }
 

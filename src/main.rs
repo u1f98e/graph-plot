@@ -1,5 +1,4 @@
 use bevy::{
-    asset::ChangeWatcher,
     prelude::*,
     render::{mesh::Indices, render_resource::PrimitiveTopology, RenderPlugin, settings::{WgpuSettings, PowerPreference}},
     sprite::{MaterialMesh2dBundle, Mesh2dHandle},

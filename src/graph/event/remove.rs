@@ -15,21 +15,18 @@ pub(crate) fn remove_item_event(
     let mut removed_edges = Vec::new();
     for event in events.iter() {
 		if let GraphEvent::RemoveItem(entity) = event {
+			// Collect any edges that will be destroyed by this removal
 			if let Ok(_) = q_nodes.get(*entity) {
-				graph.remove_node(&(*entity).into());
-
-				for (edge_e, edge) in q_edges.iter() {
-					if edge.start == *entity || edge.end == *entity {
-						removed_edges.push(edge_e);
-					}
+				for edge_e in graph.node_edges.get(&NodeE(*entity)).unwrap() {
+					removed_edges.push(*edge_e);
 				}
 			} else if let Ok((edge_e, _)) = q_edges.get(*entity) {
-				removed_edges.push(edge_e);
+				removed_edges.push(EdgeE(edge_e));
 			}
 
 			for edge_e in removed_edges.iter() {
-				let offset_removed: Option<usize> = if let Ok((_, edge)) = q_edges.get(*edge_e) {
-					graph.remove_edge(EdgeE(*edge_e), &NodeE(edge.start), &NodeE(edge.end));
+				let offset_removed: Option<usize> = if let Ok((_, edge)) = q_edges.get(**edge_e) {
+					graph.remove_edge(*edge_e, &edge.start, &edge.end);
 					edge.offset
 				} else {
 					println!("Tried to remove an edge that doesn't exist");
@@ -44,11 +41,16 @@ pub(crate) fn remove_item_event(
 						}
 					}
 				}
-				commands.entity(*edge_e).despawn_recursive();
+				commands.entity(**edge_e).despawn_recursive();
 			}
 			removed_edges.clear();
 
-			commands.entity(*entity).despawn_recursive();
+			// Actually remove the node after its edges are removed
+			if let Ok(_) = q_nodes.get(*entity) {
+				graph.remove_node(&(*entity).into());
+				commands.entity(*entity).despawn_recursive();
+			}
+
 			regen_ev.send(RegenEdgeMesh());
 		}
 	}

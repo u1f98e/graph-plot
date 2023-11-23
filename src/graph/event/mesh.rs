@@ -49,7 +49,7 @@ pub(crate) fn move_item_event(
                     } else {
                         edge_t.translation += *delta / 2.0;
 
-                        if edge.start == node_e {
+                        if *edge.start == node_e {
                             positions[offset] = node_t.translation.to_array();
                         } else {
                             positions[offset + 2] = node_t.translation.to_array();
@@ -63,9 +63,9 @@ pub(crate) fn move_item_event(
                 }
 
                 // Rotate the edge to point towards the other node
-                if node_e == edge.start {
+                if node_e == *edge.start {
                     // The node being moved is the start node for this edge
-                    let (_, end_node_t) = q_nodes.get(edge.end).unwrap();
+                    let (_, end_node_t) = q_nodes.get(*edge.end).unwrap();
                     let sign = if node_t.translation.y < end_node_t.translation.y {
                         1.0
                     } else {
@@ -76,7 +76,7 @@ pub(crate) fn move_item_event(
                     );
                 } else {
                     // The node being moved is the end node for this edge
-                    let (_, start_node_t) = q_nodes.get(edge.start).unwrap();
+                    let (_, start_node_t) = q_nodes.get(*edge.start).unwrap();
                     let sign = if node_t.translation.y < start_node_t.translation.y {
                         -1.0
                     } else {
@@ -136,8 +136,8 @@ pub(crate) fn regen_edge_mesh(
         let mut indices: Vec<u32> = vec![0, 1, 2];
 
         for (mut edge, edge_t, handle_sprite) in q_edge.iter_mut() {
-            let (_, _, start_t, start_sprite) = q_node.get(edge.start).unwrap();
-            let (_, _, end_t, end_sprite) = q_node.get(edge.end).unwrap();
+            let (_, _, start_t, start_sprite) = q_node.get(*edge.start).unwrap();
+            let (_, _, end_t, end_sprite) = q_node.get(*edge.end).unwrap();
             let start = start_t.translation;
             let handle = edge_t.translation;
             let end = end_t.translation;
