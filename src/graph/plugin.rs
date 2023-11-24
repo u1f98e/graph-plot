@@ -41,6 +41,8 @@ impl Plugin for GraphPlugin {
                     event::item_selected_event,
                     event::draw_spanning_tree,
                     event::reset_colors_event,
+                    event::phys::physics_init_event,
+                    event::phys::physics_sim_system,
                 ),
             )
             .add_systems(PostUpdate, event::regen_edge_mesh);

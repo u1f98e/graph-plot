@@ -25,11 +25,13 @@ pub enum UiItemInfo {
 
 pub(crate) fn egui_sys(
     mut contexts: EguiContexts,
-    mut cursor: ResMut<CursorInfo>,
-    mut graph: ResMut<Graph>,
-    mut info_item: ResMut<UiItemInfo>,
-    img_cache: Res<ImageCache>,
-    mut ev_selected: EventWriter<GraphEvent>,
+    mut graph_ev: EventWriter<GraphEvent>,
+    resources: (
+        ResMut<Graph>,
+        ResMut<CursorInfo>,
+        ResMut<UiItemInfo>,
+        Res<ImageCache>,
+    ),
     queries: (
         Query<(&GNode, &Children), GNodeExclusive>,
         Query<(&GEdge, &mut Handle<Image>, &Children), GEdgeExclusive>,
@@ -37,6 +39,7 @@ pub(crate) fn egui_sys(
     ),
 ) {
     let (q_node, mut q_edge, mut q_labels) = queries;
+    let (mut graph, mut cursor, mut info_item, img_cache) = resources;
 
     egui::Window::new("Graph Plotter").show(contexts.ctx_mut(), |ui| {
         ui.label(format!("Vertices: {}", graph.node_count()));
@@ -47,7 +50,7 @@ pub(crate) fn egui_sys(
         let mut directed = graph.directed;
         if ui.checkbox(&mut directed, "Directed").changed() {
             graph.directed = directed;
-            ev_selected.send(GraphEvent::ItemDeselected);
+            graph_ev.send(GraphEvent::ItemDeselected);
             for (_, mut handle, _) in q_edge.iter_mut() {
                 *handle = if directed {
                     img_cache.get("handle-dir").unwrap().clone()
@@ -63,8 +66,12 @@ pub(crate) fn egui_sys(
             }
         }
 
+        if ui.checkbox(&mut graph.do_physics, "Physics").changed() {
+            graph_ev.send(GraphEvent::PhysicsInit);
+        }
+
         if ui.button("Reset Colors").clicked() {
-            ev_selected.send(GraphEvent::ResetColors);
+            graph_ev.send(GraphEvent::ResetColors);
         }
 
         let mut mode = cursor.mode;
@@ -104,7 +111,7 @@ pub(crate) fn egui_sys(
                 );
             });
         if mode != cursor.mode {
-            cursor.set_mode(&mode, &mut ev_selected);
+            cursor.set_mode(&mode, &mut graph_ev);
         }
 
         if mode == CursorMode::Paint {

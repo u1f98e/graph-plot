@@ -46,6 +46,10 @@ impl GEdge {
             3
         }
     }
+
+    pub fn endpoints(&self) -> (NodeE, NodeE) {
+        (self.start, self.end)
+    }
 }
 
 #[derive(Default, Bundle)]
@@ -68,11 +72,23 @@ impl From<Entity> for NodeE {
     }
 }
 
+impl From<NodeE> for Entity {
+    fn from(e: NodeE) -> Self {
+        e.0
+    }
+}
+
 #[derive(Deref, Eq, PartialEq, Hash, Clone, Copy)]
 pub struct EdgeE(pub Entity);
 impl From<Entity> for EdgeE {
     fn from(e: Entity) -> Self {
         Self(e)
+    }
+}
+
+impl From<EdgeE> for Entity {
+    fn from(e: EdgeE) -> Self {
+        e.0
     }
 }
 
@@ -91,6 +107,7 @@ pub struct Graph {
     pub last_component_num: u32,
 
     pub show_labels: bool,
+    pub do_physics: bool,
 }
 
 impl Graph {
@@ -107,6 +124,7 @@ impl Graph {
             last_edge_num: 0,
             last_component_num: 0,
             show_labels: false,
+            do_physics: false,
         }
     }
 
@@ -166,8 +184,16 @@ impl Graph {
         }
     }
 
-    /// Determine whether two nodes are adjacent in the graph
-    pub fn is_adjacent(&self, node: &NodeE, edge: &EdgeE) -> Option<NodeE> {
+    pub fn is_adjacent(&self, a: &NodeE, b: &NodeE) -> bool {
+        self.node_edges.get(a).unwrap().iter().any(|&x| {
+            let (start, end) = self.edge_nodes.get(&x).unwrap();
+            start == b || end == b
+        })
+    }
+
+    /// Get the node opposite the given node across the given edge (if the 
+    /// direction of the edge moves to the opposite node, and the edge is not a loop)
+    pub fn opposite(&self, node: &NodeE, edge: &EdgeE) -> Option<NodeE> {
         let (start, end) = self.edge_nodes.get(edge)?;
         if start == end {
             None
@@ -184,7 +210,7 @@ impl Graph {
     pub fn adjacent_nodes(&self, node: &NodeE) -> HashSet<NodeE> {
         let mut nodes = HashSet::new();
         for edge in self.node_edges.get(node).unwrap() {
-            if let Some(adj) = self.is_adjacent(node, edge) {
+            if let Some(adj) = self.opposite(node, edge) {
                 nodes.insert(adj);
             }
         }
@@ -206,7 +232,7 @@ impl Graph {
 
         while let Some(node) = stack.pop() {
             for edge in self.node_edges.get(&node).unwrap() {
-                if let Some(adj) = self.is_adjacent(&node, edge) {
+                if let Some(adj) = self.opposite(&node, edge) {
                     if !visited.contains(&adj) {
                         if visit(&adj, Some(edge)) {
                             return; // If visit returns true, return early
@@ -243,7 +269,7 @@ impl Graph {
 
         while let Some(node) = stack.pop() {
             for edge in self.node_edges.get(&node).unwrap() {
-                if let Some(adj) = self.is_adjacent(&node, edge) {
+                if let Some(adj) = self.opposite(&node, edge) {
                     if edge == target_edge {
                         continue; // Skip the target edge, we want to see if there are any connections other than through it
                     }

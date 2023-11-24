@@ -2,6 +2,7 @@ mod span_tree;
 mod add;
 mod remove;
 mod mesh;
+pub(crate) mod phys;
 
 pub(crate) use {add::*, remove::*, mesh::*, span_tree::*};
 
@@ -28,6 +29,7 @@ pub enum GraphEvent {
     ItemSelected(Entity),
     ItemDeselected,
     ResetColors,
+    PhysicsInit,
 }
 
 #[derive(Event)]

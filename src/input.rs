@@ -127,8 +127,6 @@ pub fn mouse_movement_sys(
                 camera_tf.translation.x -= cursor_delta.x;
                 camera_tf.translation.y += cursor_delta.y;
             } else {
-                let mut transform = q_grab.get_mut(entity).unwrap().1;
-                transform.translation = Vec3::new(cursor.world_pos.x, cursor.world_pos.y, 0.0);
                 ev_move_item.send(ItemMovedEvent(
                     entity,
                     Vec3::new(cursor_delta.x, -cursor_delta.y, 0.0),

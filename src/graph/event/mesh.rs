@@ -23,7 +23,7 @@ pub(crate) fn move_item_event(
     mut events: EventReader<ItemMovedEvent>,
     mut meshes: ResMut<Assets<Mesh>>,
     graph: Res<Graph>,
-    q_nodes: Query<(Entity, &Transform), GNodeExclusive>,
+    mut q_nodes: Query<(Entity, &mut Transform), GNodeExclusive>,
     mut q_edges: Query<(&GEdge, &mut Transform), GEdgeExclusive>,
 ) {
     let mesh: &mut Mesh = meshes.get_mut(&graph.edge_mesh_handle.0).unwrap();
@@ -33,6 +33,11 @@ pub(crate) fn move_item_event(
     };
 
     for ItemMovedEvent(entity, delta) in events.iter() {
+        // Do the transformation separately to get around borrow restrictions
+        if let Ok((_, mut node_t)) = q_nodes.get_mut(*entity) {
+            node_t.translation += *delta;
+        }
+
         if let Ok((node_e, node_t)) = q_nodes.get(*entity) {
             for edge_e in graph.node_edges.get(&NodeE(node_e)).unwrap() {
                 let (edge, mut edge_t) = q_edges.get_mut(**edge_e).unwrap();
@@ -88,7 +93,10 @@ pub(crate) fn move_item_event(
                     );
                 }
             }
-        } else if let Ok((edge, edge_t)) = q_edges.get(*entity) {
+        } else if let Ok((edge, mut edge_t)) = q_edges.get_mut(*entity) {
+            // Do the transformation
+            edge_t.translation += *delta;
+
             if let Some(offset) = edge.offset {
                 // Normal edge
                 if edge.is_loop() {
