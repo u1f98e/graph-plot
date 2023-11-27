@@ -6,7 +6,7 @@ use bevy::render::view::NoFrustumCulling;
 use bevy::sprite::{MaterialMesh2dBundle, Mesh2dHandle};
 use bevy::{prelude::*, sprite::Material2dPlugin};
 
-use crate::materials;
+use crate::{materials, ui};
 
 use super::event;
 use super::event::*;
@@ -26,7 +26,8 @@ impl Plugin for GraphPlugin {
             .add_systems(Startup, (GraphPlugin::init, GraphPlugin::init_graph))
             .init_resource::<ImageCache>()
             .init_resource::<crate::ui::Alerts>()
-            .init_resource::<crate::ui::UiItemInfo>();
+            .init_resource::<crate::ui::UiItemInfo>()
+            .init_resource::<crate::ui::GraphInfoWindow>();
 
         app.add_event::<GraphEvent>()
             .add_event::<ItemMovedEvent>()
@@ -45,6 +46,8 @@ impl Plugin for GraphPlugin {
                     event::reset_colors_event,
                     event::phys::physics_init_event,
                     event::phys::physics_sim_system,
+                    ui::egui_sys,
+                    ui::egui_show_graph_info,
                 ),
             )
             .add_systems(PostUpdate, event::regen_edge_mesh);

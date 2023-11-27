@@ -1,5 +1,4 @@
 use bevy::prelude::*;
-use bevy_egui::{EguiContext, EguiContexts, egui};
 
 use crate::{graph::Graph, types::{GEdgeExclusive, GNodeExclusive}};
 
@@ -37,7 +36,6 @@ pub(crate) fn draw_bipartite(
 	mut q_node: Query<&mut Sprite, GNodeExclusive>,
 	mut q_edge: Query<&mut Sprite, GEdgeExclusive>,
 	mut ev_regen: EventWriter<RegenEdgeMesh>,
-	mut egui: EguiContexts
 ) {
 	for event in events.iter() {
 		if let AnalyzeGraphEvent::Bipartite(node_e) = event {

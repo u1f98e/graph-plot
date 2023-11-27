@@ -2,7 +2,11 @@ use bevy::prelude::*;
 use bevy_egui::{egui, EguiContexts};
 
 use crate::{
-    graph::{event::{GraphEvent, get_visibility}, plugin::ImageCache, GEdge, GNode, Graph, NodeE, EdgeE},
+    graph::{
+        event::{get_visibility, GraphEvent},
+        plugin::ImageCache,
+        EdgeE, GEdge, GNode, Graph, LabeledMatrix, NodeE,
+    },
     input::{CursorInfo, CursorMode},
     types::{GEdgeExclusive, GNodeExclusive},
 };
@@ -16,14 +20,21 @@ pub(crate) enum UiItemInfo {
     None,
     Node {
         node_e: Entity,
-        label: Option<Entity>
+        label: Option<Entity>,
     },
     Edge {
         edge: GEdge,
         edge_e: Entity,
         is_bridge: bool,
-        label: Option<Entity>
+        label: Option<Entity>,
     },
+}
+
+#[derive(Default, Resource)]
+pub(crate) struct GraphInfoWindow {
+    pub open: bool,
+    adj_matrix: LabeledMatrix,
+    max_col_width: usize
 }
 
 pub(crate) fn egui_sys(
@@ -34,6 +45,7 @@ pub(crate) fn egui_sys(
         ResMut<CursorInfo>,
         ResMut<UiItemInfo>,
         ResMut<Alerts>,
+        ResMut<GraphInfoWindow>,
         Res<ImageCache>,
     ),
     queries: (
@@ -43,15 +55,16 @@ pub(crate) fn egui_sys(
     ),
 ) {
     let (q_node, mut q_edge, mut q_labels) = queries;
-    let (mut graph, mut cursor, mut info_item, mut alerts, img_cache) = resources;
+    let (mut graph, mut cursor, mut info_item, mut alerts, mut info_win, img_cache) = resources;
 
     show_alerts(contexts.ctx_mut(), &mut alerts.0);
 
     egui::Window::new("Graph Plotter").show(contexts.ctx_mut(), |ui| {
-        ui.label(format!("Vertices: {}", graph.node_count()));
-        ui.label(format!("Edges: {}", graph.degree() / 2));
-        ui.label(format!("Total Degree: {}", graph.degree()));
-        ui.label(format!("Components: {}", graph.components()));
+        egui_graph_info(ui, &graph);
+
+        if ui.button("Graph Info").clicked() {
+            info_win.open = true;
+        }
 
         let mut directed = graph.directed;
         if ui.checkbox(&mut directed, "Directed").changed() {
@@ -129,32 +142,35 @@ pub(crate) fn egui_sys(
             let mut color: [u8; 3] = cursor.paint_color.as_rgba_u8()[0..3].try_into().unwrap();
             egui::color_picker::color_edit_button_srgb(ui, &mut color);
             cursor.paint_color = Color::rgb_u8(color[0], color[1], color[2]);
-        } 
-        else if mode == CursorMode::Info {
+        } else if mode == CursorMode::Info {
             match &*info_item {
-                UiItemInfo::None => if let Some(entity) = cursor.selected {
-                    if let Ok((_node, children)) = q_node.get(entity) {
-                        let label = children.iter().find(|&child| {
-                            q_labels.get(*child).is_ok()
-                        }).copied();
+                UiItemInfo::None => {
+                    if let Some(entity) = cursor.selected {
+                        if let Ok((_node, children)) = q_node.get(entity) {
+                            let label = children
+                                .iter()
+                                .find(|&child| q_labels.get(*child).is_ok())
+                                .copied();
 
-                        *info_item = UiItemInfo::Node {
-                            node_e: entity,
-                            label
-                        };
-                    } else if let Ok((edge, _, children)) = q_edge.get_mut(entity) {
-                        let label = children.iter().find(|&child| {
-                            q_labels.get(*child).is_ok()
-                        }).copied();
+                            *info_item = UiItemInfo::Node {
+                                node_e: entity,
+                                label,
+                            };
+                        } else if let Ok((edge, _, children)) = q_edge.get_mut(entity) {
+                            let label = children
+                                .iter()
+                                .find(|&child| q_labels.get(*child).is_ok())
+                                .copied();
 
-                        *info_item = UiItemInfo::Edge {
-                            edge: edge.clone(),
-                            edge_e: entity,
-                            label,
-                            is_bridge: graph.is_bridge(&EdgeE(entity)),
-                        };
+                            *info_item = UiItemInfo::Edge {
+                                edge: edge.clone(),
+                                edge_e: entity,
+                                label,
+                                is_bridge: graph.is_bridge(&EdgeE(entity)),
+                            };
+                        }
                     }
-                },
+                }
                 UiItemInfo::Node { node_e, label } => {
                     ui.label(format!("Node: ID = {}", node_e.index()));
 
@@ -168,8 +184,13 @@ pub(crate) fn egui_sys(
                         "Degree: {}",
                         graph.node_edges.get(&NodeE(*node_e)).unwrap().len()
                     ));
-                },
-                UiItemInfo::Edge { edge, edge_e, is_bridge, label } => {
+                }
+                UiItemInfo::Edge {
+                    edge,
+                    edge_e,
+                    is_bridge,
+                    label,
+                } => {
                     ui.label(format!("Edge: ID = {}", edge_e.index()));
 
                     if let Some(label) = label {
@@ -186,11 +207,19 @@ pub(crate) fn egui_sys(
     });
 }
 
-fn egui_matrix(ui: &mut egui::Ui, data: Vec<Vec<f32>>) {
-    for row in data.iter() {
+fn egui_matrix(ui: &mut egui::Ui, matrix: &LabeledMatrix, max_col_width: usize) {
+    ui.horizontal(|ui| {
+        ui.monospace(format!("{1:0$}", max_col_width, ""));
+        for col in matrix.h_headers.iter() {
+            ui.monospace(format!("{1:0$}", max_col_width, col));
+        }
+    });
+
+    for (row, cols) in matrix.data.iter().enumerate() {
         ui.horizontal(|ui| {
-            for col in row.iter() {
-                ui.label(format!("{:.2}", col));
+            ui.monospace(format!("{1:0$}", max_col_width, matrix.v_headers[row]));
+            for col in cols.iter() {
+                ui.monospace(format!("{1:0$}", max_col_width, col));
             }
         });
     }
@@ -200,7 +229,37 @@ fn egui_graph_info(ui: &mut egui::Ui, graph: &Graph) {
     ui.label(format!("Vertices: {}", graph.node_count()));
     ui.label(format!("Edges: {}", graph.degree() / 2));
     ui.label(format!("Total Degree: {}", graph.degree()));
-    ui.label(format!("Components: {}", graph.components));
+    ui.label(format!("Components: {}", graph.components()));
+}
+
+pub(crate) fn egui_show_graph_info(
+    mut contexts: EguiContexts,
+    mut info_win: ResMut<GraphInfoWindow>,
+    q_nodes: Query<(Entity, &Children), With<GNode>>,
+    q_text: Query<&Text>,
+    graph: Res<Graph>,
+) {
+    let mut open = info_win.open;
+    egui::Window::new("Graph Info")
+        .open(&mut open)
+        .show(contexts.ctx_mut(), |ui| {
+            egui::ScrollArea::both().max_width(200.0).max_width(200.0).show(ui, |ui| {
+                if ui.button("Refresh").clicked() || info_win.adj_matrix.data.is_empty() {
+                    info_win.adj_matrix = graph.adjacency_matrix(&q_nodes, &q_text);
+
+                    // Get the maximum column width for the matrix
+                    let mut max_width = 0;
+                    for header in info_win.adj_matrix.h_headers.iter() {
+                        max_width = max_width.max(header.len());
+                    }
+                    info_win.max_col_width = max_width;
+                }
+                ui.label("Adjacency Matrix");
+                egui_matrix(ui, &info_win.adj_matrix, info_win.max_col_width);
+            });
+        });
+
+    info_win.open = open;
 }
 
 fn show_alerts(ctx: &mut egui::Context, alerts: &mut Vec<String>) {

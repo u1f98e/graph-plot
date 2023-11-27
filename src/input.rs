@@ -27,7 +27,7 @@ impl core::fmt::Display for CursorMode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             CursorMode::Normal => write!(f, "Drag/Pan"),
-            CursorMode::Info => write!(f, "Node Info"),
+            CursorMode::Info => write!(f, "Info"),
             CursorMode::CreateNode => write!(f, "Create Node"),
             CursorMode::CreateEdge => write!(f, "Create Edge"),
             CursorMode::Remove => write!(f, "Erase"),
@@ -110,7 +110,6 @@ pub fn mouse_movement_sys(
         (Entity, &Camera, &mut Transform, &OrthographicProjection, &GlobalTransform),
         With<crate::MainCamera>,
     >,
-    mut q_grab: Query<(Entity, &mut Transform), (With<Grabbable>, Without<Camera>)>,
     mut ev_move_item: EventWriter<ItemMovedEvent>,
 ) {
     let (camera_e, camera, mut camera_tf, proj, camera_global_tf) = q_camera.single_mut();

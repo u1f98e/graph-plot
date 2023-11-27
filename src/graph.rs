@@ -353,4 +353,47 @@ impl Graph {
     pub fn shortest_path(&self, start: &NodeE, end: &NodeE) -> Option<Vec<(NodeE, EdgeE)>> {
         None
     }
+
+    pub fn adjacency_matrix(&self, q_node: &Query<(Entity, &Children), With<GNode>>, q_text: &Query<&Text>) -> LabeledMatrix {
+        let mut matrix = LabeledMatrix::default();
+        matrix.data = vec![vec![0.0; self.node_edges.len()]; self.node_edges.len()];
+
+        let mut labels = Vec::new();
+        q_node.iter().for_each(|(node_e, children)| {
+            for child in children.iter() {
+                q_text.get(*child).ok().map(|text| {
+                    labels.push((node_e, text.sections[0].value.clone()));
+                });
+            }
+        });
+        labels.sort_by(|(_, a), (_, b)| a.cmp(b));
+
+        let mut indicies = HashMap::new();
+        for (i, (node, _)) in labels.iter().enumerate() {
+            indicies.insert(*node, i);
+            matrix.v_headers.push(labels[i].1.clone());
+            matrix.h_headers.push(labels[i].1.clone());
+        }
+
+        for (node, edges) in self.node_edges.iter() {
+            for edge in edges.iter() {
+                let adj = match self.opposite(node, edge) {
+                    OppositeNode::Adjacent(adj) => adj,
+                    OppositeNode::CounterAdjacent(_) => continue,
+                    OppositeNode::Loop => *node,
+                    _ => continue,
+                };
+                matrix.data[indicies[node]][indicies[&adj]] = 1.0;
+            }
+        }
+
+        matrix
+    }
+}
+
+#[derive(Default)]
+pub struct LabeledMatrix {
+    pub data: Vec<Vec<f32>>,
+    pub h_headers: Vec<String>,
+    pub v_headers: Vec<String>,
 }

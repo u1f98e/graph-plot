@@ -1,4 +1,4 @@
-use bevy::{prelude::*, render::render_resource::{AsBindGroup, ShaderRef}, reflect::{TypePath, TypeUuid}, sprite::Material2d};
+use bevy::{render::render_resource::{AsBindGroup, ShaderRef}, reflect::{TypePath, TypeUuid}, sprite::Material2d};
 
 #[derive(Default, AsBindGroup, TypePath, TypeUuid, Debug, Clone)]
 #[uuid = "172eee85-2e56-4e77-972a-6c040d366ccb"]
