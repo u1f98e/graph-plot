@@ -20,6 +20,7 @@ pub enum CursorMode {
     Paint,
     Info,
     SpanningTree,
+    Bipartite,
 }
 
 impl core::fmt::Display for CursorMode {
@@ -32,6 +33,7 @@ impl core::fmt::Display for CursorMode {
             CursorMode::Remove => write!(f, "Erase"),
             CursorMode::Paint => write!(f, "Paint"),
             CursorMode::SpanningTree => write!(f, "Draw Spanning Tree"),
+            CursorMode::Bipartite => write!(f, "Try Bipartite Graph"),
         }
     }
 }
@@ -229,6 +231,11 @@ pub(crate) fn mouse_button_sys(
                 CursorMode::SpanningTree => {
                     if let Some(entity) = get_closest_grab(&cursor, q_node.iter()) {
                         ev_analyze.send(AnalyzeGraphEvent::SpanningTree(NodeE(entity)));
+                    }
+                }
+                CursorMode::Bipartite => {
+                    if let Some(entity) = get_closest_grab(&cursor, q_node.iter()) {
+                        ev_analyze.send(AnalyzeGraphEvent::Bipartite(NodeE(entity)));
                     }
                 }
             }

@@ -110,6 +110,13 @@ pub struct Graph {
     pub do_physics: bool,
 }
 
+pub enum OppositeNode {
+    Adjacent(NodeE),
+    CounterAdjacent(NodeE),
+    Loop,
+    None
+}
+
 impl Graph {
     pub fn new(edge_mesh_handle: Mesh2dHandle, edge_mesh: Entity) -> Self {
         Graph {
@@ -193,16 +200,23 @@ impl Graph {
 
     /// Get the node opposite the given node across the given edge (if the 
     /// direction of the edge moves to the opposite node, and the edge is not a loop)
-    pub fn opposite(&self, node: &NodeE, edge: &EdgeE) -> Option<NodeE> {
-        let (start, end) = self.edge_nodes.get(edge)?;
+    pub fn opposite(&self, node: &NodeE, edge: &EdgeE) -> OppositeNode {
+        let (start, end) = match self.edge_nodes.get(edge) {
+            Some(tuple) => tuple,
+            None => return OppositeNode::None
+        };
+
         if start == end {
-            None
+            OppositeNode::Loop
         } else if node == start {
-            Some(*end)
-        } else if !self.directed {
-            Some(*start)
+            OppositeNode::Adjacent(*end)
         } else {
-            None
+            if self.directed {
+                OppositeNode::CounterAdjacent(*start)
+            }
+            else {
+                OppositeNode::Adjacent(*start)
+            }
         }
     }
 
@@ -210,8 +224,14 @@ impl Graph {
     pub fn adjacent_nodes(&self, node: &NodeE) -> HashSet<NodeE> {
         let mut nodes = HashSet::new();
         for edge in self.node_edges.get(node).unwrap() {
-            if let Some(adj) = self.opposite(node, edge) {
-                nodes.insert(adj);
+            match self.opposite(node, edge) {
+                OppositeNode::Adjacent(adj) => {
+                    nodes.insert(adj);
+                },
+                OppositeNode::CounterAdjacent(adj) => {
+                    nodes.insert(adj);
+                },
+                _ => ()
             }
         }
 
@@ -222,7 +242,7 @@ impl Graph {
     /// and calling the predicate on each node and edge visited.
     pub fn spanning_tree<F>(&self, start: &NodeE, mut visit: F)
     where
-        F: FnMut(&NodeE, Option<&EdgeE>) -> bool, // Node, Edge
+        F: FnMut(&NodeE, Option<&EdgeE>) -> bool,
     {
         let mut visited = HashSet::new();
         let mut stack = Vec::new();
@@ -232,7 +252,7 @@ impl Graph {
 
         while let Some(node) = stack.pop() {
             for edge in self.node_edges.get(&node).unwrap() {
-                if let Some(adj) = self.opposite(&node, edge) {
+                if let OppositeNode::Adjacent(adj) = self.opposite(&node, edge) {
                     if !visited.contains(&adj) {
                         if visit(&adj, Some(edge)) {
                             return; // If visit returns true, return early
@@ -243,6 +263,45 @@ impl Graph {
                 }
             }
         }
+    }
+
+    pub fn bipartite_walk<F>(&self, start: &NodeE, mut visit: F) -> bool
+    where
+        F: FnMut(&NodeE, Option<&EdgeE>, usize),
+    {
+        let mut sets = Vec::new();
+        sets.push(HashSet::new());
+        sets.push(HashSet::new());
+
+        // Visit the start node and add it to set 0
+        sets[0].insert(*start);
+        visit(start, None, 0);
+        let mut stack = Vec::new();
+        stack.push((0, *start));
+
+        while let Some((current_set, node)) = stack.pop() {
+            let next_set = (current_set + 1) % sets.len();
+            for edge in self.node_edges.get(&node).unwrap() {
+                let adj = match self.opposite(&node, edge) {
+                    OppositeNode::Adjacent(adj) => adj,
+                    OppositeNode::CounterAdjacent(adj) => adj,
+                    OppositeNode::Loop => return false, // No loops in bipartite graphs
+                    OppositeNode::None => continue
+                };
+                if sets[current_set].contains(&adj) {
+                    return false;
+                }
+                else {
+                    visit(&adj, Some(edge), next_set);
+                    if !sets[next_set].contains(&adj) {
+                        sets[next_set].insert(adj);
+                        stack.push((next_set, adj));
+                    }
+                }
+            }
+        }
+
+        return true;
     }
 
     /// Determine whether two nodes are connected in the graph
@@ -269,17 +328,20 @@ impl Graph {
 
         while let Some(node) = stack.pop() {
             for edge in self.node_edges.get(&node).unwrap() {
-                if let Some(adj) = self.opposite(&node, edge) {
-                    if edge == target_edge {
-                        continue; // Skip the target edge, we want to see if there are any connections other than through it
-                    }
-                    if adj == *end {
-                        return false; // Found an alternate path, this is a link, not a bridge
-                    }
-                    if !visited.contains(&adj) {
-                        visited.insert(adj);
-                        stack.push(adj);
-                    }
+                let adj = match self.opposite(&node, edge) {
+                    OppositeNode::Adjacent(adj) => adj,
+                    OppositeNode::CounterAdjacent(adj) => adj,
+                    _ => continue, // No loops in bipartite graphs
+                };
+                if edge == target_edge {
+                    continue; // Skip the target edge, we want to see if there are any connections other than through it
+                }
+                if adj == *end {
+                    return false; // Found an alternate path, this is a link, not a bridge
+                }
+                if !visited.contains(&adj) {
+                    visited.insert(adj);
+                    stack.push(adj);
                 }
             }
         }

@@ -1,10 +1,10 @@
-mod span_tree;
+mod draw;
 mod add;
 mod remove;
 mod mesh;
 pub(crate) mod phys;
 
-pub(crate) use {add::*, remove::*, mesh::*, span_tree::*};
+pub(crate) use {add::*, remove::*, mesh::*, draw::*};
 
 use bevy::prelude::*;
 
@@ -41,6 +41,7 @@ pub(crate) struct RegenEdgeMesh();
 #[derive(Event)]
 pub enum AnalyzeGraphEvent {
     SpanningTree(NodeE),
+    Bipartite(NodeE),
     Dijkstra(NodeE, NodeE),
 }
 

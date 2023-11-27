@@ -25,6 +25,7 @@ impl Plugin for GraphPlugin {
             .add_asset::<materials::CurveMaterial>()
             .add_systems(Startup, (GraphPlugin::init, GraphPlugin::init_graph))
             .init_resource::<ImageCache>()
+            .init_resource::<crate::ui::Alerts>()
             .init_resource::<crate::ui::UiItemInfo>();
 
         app.add_event::<GraphEvent>()
@@ -40,6 +41,7 @@ impl Plugin for GraphPlugin {
                     event::move_item_event,
                     event::item_selected_event,
                     event::draw_spanning_tree,
+                    event::draw_bipartite,
                     event::reset_colors_event,
                     event::phys::physics_init_event,
                     event::phys::physics_sim_system,

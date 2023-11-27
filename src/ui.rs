@@ -8,7 +8,10 @@ use crate::{
 };
 
 #[derive(Default, Resource)]
-pub enum UiItemInfo {
+pub(crate) struct Alerts(pub Vec<String>);
+
+#[derive(Default, Resource)]
+pub(crate) enum UiItemInfo {
     #[default]
     None,
     Node {
@@ -30,6 +33,7 @@ pub(crate) fn egui_sys(
         ResMut<Graph>,
         ResMut<CursorInfo>,
         ResMut<UiItemInfo>,
+        ResMut<Alerts>,
         Res<ImageCache>,
     ),
     queries: (
@@ -39,7 +43,9 @@ pub(crate) fn egui_sys(
     ),
 ) {
     let (q_node, mut q_edge, mut q_labels) = queries;
-    let (mut graph, mut cursor, mut info_item, img_cache) = resources;
+    let (mut graph, mut cursor, mut info_item, mut alerts, img_cache) = resources;
+
+    show_alerts(contexts.ctx_mut(), &mut alerts.0);
 
     egui::Window::new("Graph Plotter").show(contexts.ctx_mut(), |ui| {
         ui.label(format!("Vertices: {}", graph.node_count()));
@@ -108,6 +114,11 @@ pub(crate) fn egui_sys(
                     &mut mode,
                     CursorMode::SpanningTree,
                     format!("{}", CursorMode::SpanningTree),
+                );
+                ui.selectable_value(
+                    &mut mode,
+                    CursorMode::Bipartite,
+                    format!("{}", CursorMode::Bipartite),
                 );
             });
         if mode != cursor.mode {
@@ -190,4 +201,18 @@ fn egui_graph_info(ui: &mut egui::Ui, graph: &Graph) {
     ui.label(format!("Edges: {}", graph.degree() / 2));
     ui.label(format!("Total Degree: {}", graph.degree()));
     ui.label(format!("Components: {}", graph.components));
+}
+
+fn show_alerts(ctx: &mut egui::Context, alerts: &mut Vec<String>) {
+    let mut closed = Vec::new();
+    for alert in alerts.iter() {
+        egui::Window::new("Alert").show(ctx, |ui| {
+            ui.label(alert);
+            if ui.button("Ok").clicked() {
+                closed.push(alert.clone());
+            }
+        });
+    }
+
+    alerts.retain(|a| !closed.contains(a));
 }
