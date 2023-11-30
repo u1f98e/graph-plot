@@ -1,7 +1,7 @@
 pub mod event;
 pub mod plugin;
 
-use std::{collections::{HashMap, HashSet}, thread::current};
+use std::collections::{HashMap, HashSet};
 
 use bevy::{prelude::*, sprite::Mesh2dHandle};
 
@@ -234,39 +234,6 @@ impl Graph {
                 OppositeNode::Adjacent(*start)
             }
         }
-    }
-
-    /// Get the nodes adjacent to the given node
-    pub fn adjacent_nodes(&self, node: &NodeE) -> HashSet<NodeE> {
-        let mut nodes = HashSet::new();
-        for edge in self.node_edges.get(node).unwrap() {
-            match self.opposite(node, edge) {
-                OppositeNode::Adjacent(adj) => {
-                    nodes.insert(adj);
-                },
-                OppositeNode::CounterAdjacent(adj) => {
-                    nodes.insert(adj);
-                },
-                _ => ()
-            }
-        }
-
-        nodes
-    }
-    
-    /// Get the nodes adjacent to the given node, taking into consideration edge direction
-    pub fn adjacent_nodes_directed(&self, node: &NodeE) -> HashSet<NodeE> {
-        let mut nodes = HashSet::new();
-        for edge in self.node_edges.get(node).unwrap() {
-            match self.opposite(node, edge) {
-                OppositeNode::Adjacent(adj) => {
-                    nodes.insert(adj);
-                },
-                _ => ()
-            }
-        }
-
-        nodes
     }
 
     /// Perform a depth-first search of the graph, starting at the given node
