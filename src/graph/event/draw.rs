@@ -18,11 +18,11 @@ pub(crate) fn draw_spanning_tree(
 				cursor.paint_color
 			}
 			else {
-				Color::rgb_u8(0, 1, 0)
+				Color::GREEN
 			};
 
 			graph.spanning_tree(node_e, |part| {
-				if let Ok(mut sprite) = q_node.get_mut(**node_e) {
+				if let Ok(mut sprite) = q_node.get_mut(*part.node) {
 					sprite.color = color;
 				}
 				if let Some(edge_e) = part.edge {
@@ -49,9 +49,9 @@ pub(crate) fn draw_bipartite(
 		if let AnalyzeGraphEvent::Bipartite(node_e) = event {
 			let result = graph.bipartite_walk(node_e, |node_e, edge_e, set| {
 				let color = if set == 0 {
-					Color::rgb_u8(1, 0, 0)
+					Color::rgb(1.0, 0.0, 0.0)
 				} else {
-					Color::rgb_u8(0, 0, 1)
+					Color::rgb(0.0, 0.0, 1.0)
 				};
 
 				if let Ok(mut sprite) = q_node.get_mut(**node_e) {
@@ -86,7 +86,7 @@ pub(crate) fn draw_shortest_path(
 				cursor.paint_color
 			}
 			else {
-				Color::rgb_u8(0, 1, 0)
+				Color::GREEN
 			};
 
 			if let Some(path) = graph.dijkstra_path(&a, &b, Some(&p_edge.p1())) {
