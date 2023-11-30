@@ -1,6 +1,6 @@
-use bevy::{render::render_resource::{AsBindGroup, ShaderRef}, reflect::{TypePath, TypeUuid}, sprite::Material2d};
+use bevy::{render::render_resource::{AsBindGroup, ShaderRef}, reflect::{TypePath, TypeUuid}, sprite::Material2d, asset::Asset};
 
-#[derive(Default, AsBindGroup, TypePath, TypeUuid, Debug, Clone)]
+#[derive(Default, Asset, AsBindGroup, TypePath, TypeUuid, Debug, Clone)]
 #[uuid = "172eee85-2e56-4e77-972a-6c040d366ccb"]
 pub struct CurveMaterial {
 	#[uniform(0)]

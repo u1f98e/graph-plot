@@ -22,7 +22,7 @@ pub struct GraphPlugin;
 impl Plugin for GraphPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(Material2dPlugin::<materials::CurveMaterial>::default())
-            .add_asset::<materials::CurveMaterial>()
+            // .add_asset::<materials::CurveMaterial>()
             .add_systems(Startup, (GraphPlugin::init, GraphPlugin::init_graph))
             .init_resource::<ImageCache>()
             .init_resource::<crate::ui::Alerts>()

@@ -15,7 +15,7 @@ pub(crate) fn physics_init_event(
 	mut q_edges: Query<(Entity, &GEdge, &mut Transform), GEdgeExclusive>,
 	q_nodes: Query<&mut Transform, GNodeExclusive>
 ) {
-	match events.iter().last() {
+	match events.read().last() {
 		Some(GraphEvent::PhysicsInit) => {
 			for (edge_e, edge, mut edge_t) in q_edges.iter_mut() {
 				if edge.is_loop() {

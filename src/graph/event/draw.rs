@@ -12,7 +12,7 @@ pub(crate) fn draw_spanning_tree(
 	mut q_edge: Query<&mut Sprite, GEdgeExclusive>,
 	mut ev_regen: EventWriter<RegenEdgeMesh>,
 ) {
-	for event in events.iter() {
+	for event in events.read() {
 		if let AnalyzeGraphEvent::SpanningTree(node_e) = event {
 			let color = if cursor.paint_color != Color::WHITE {
 				cursor.paint_color
@@ -45,7 +45,7 @@ pub(crate) fn draw_bipartite(
 	mut q_edge: Query<&mut Sprite, GEdgeExclusive>,
 	mut ev_regen: EventWriter<RegenEdgeMesh>,
 ) {
-	for event in events.iter() {
+	for event in events.read() {
 		if let AnalyzeGraphEvent::Bipartite(node_e) = event {
 			let result = graph.bipartite_walk(node_e, |node_e, edge_e, set| {
 				let color = if set == 0 {
@@ -80,7 +80,7 @@ pub(crate) fn draw_shortest_path(
 	mut p_edge: ParamSet<(Query<&mut Sprite, GEdgeExclusive>, Query<&GEdge>)>,
 	mut ev_regen: EventWriter<RegenEdgeMesh>,
 ) {
-	for event in events.iter() {
+	for event in events.read() {
 		if let AnalyzeGraphEvent::Dijkstra(a, b) = event {
 			let color = if cursor.paint_color != Color::WHITE {
 				cursor.paint_color

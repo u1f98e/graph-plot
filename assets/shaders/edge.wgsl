@@ -1,5 +1,5 @@
 // #import bevy_pbr::mesh_vertex_output MeshVertexOutput
-#import bevy_sprite::mesh2d_vertex_output MeshVertexOutput
+#import bevy_sprite::mesh2d_vertex_output::VertexOutput
 
 struct CurveMaterial {
 	thickness: f32
@@ -9,7 +9,7 @@ struct CurveMaterial {
 var<uniform> material: CurveMaterial;
 
 @fragment
-fn fragment(mesh: MeshVertexOutput) -> @location(0) vec4<f32> {
+fn fragment(mesh: VertexOutput) -> @location(0) vec4<f32> {
 	return quadratic_curve(mesh.uv, mesh.color);
 }
 

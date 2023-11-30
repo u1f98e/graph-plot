@@ -80,7 +80,7 @@ pub(crate) fn key_input_sys(
     mut ev_graph: EventWriter<GraphEvent>,
     mut ev_regen: EventWriter<RegenEdgeMesh>,
 ) {
-    for KeyboardInput { key_code, state, ..  } in key_evr.iter()
+    for KeyboardInput { key_code, state, ..  } in key_evr.read()
     {
         if egui_has_keyboard(&mut q_egui) {
             continue;
@@ -116,7 +116,7 @@ pub fn mouse_movement_sys(
 ) {
     let (camera_e, camera, mut camera_tf, proj, camera_global_tf) = q_camera.single_mut();
 
-    for CursorMoved { position, .. } in cursor_evr.iter() {
+    for CursorMoved { position, .. } in cursor_evr.read() {
         let ray = camera.viewport_to_world(camera_global_tf, *position);
         let mut cursor_delta = Vec2::ZERO;
         if let Some(ray) = ray {
@@ -178,7 +178,7 @@ pub(crate) fn mouse_button_sys(
 ) {
     let (mut q_egui, q_node, q_handle, mut q_sprite, q_camera) = query;
 
-    for MouseButtonInput { button, state, .. } in events.iter() {
+    for MouseButtonInput { button, state, .. } in events.read() {
         if *button == MouseButton::Left && !state.is_pressed() {
             cursor.grabbed = None;
         }
@@ -259,7 +259,7 @@ pub fn mouse_scroll_input(
     mut scroll_evr: EventReader<MouseWheel>,
     mut q_camera: Query<&mut OrthographicProjection, With<MainCamera>>,
 ) {
-    for MouseWheel { unit, y, .. } in scroll_evr.iter() {
+    for MouseWheel { unit, y, .. } in scroll_evr.read() {
         let mut proj = q_camera.single_mut();
         match unit {
             MouseScrollUnit::Line => {

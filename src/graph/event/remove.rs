@@ -13,7 +13,7 @@ pub(crate) fn remove_item_event(
     mut q_edges: Query<(Entity, &mut GEdge)>,
 ) {
     let mut removed_edges = Vec::new();
-    for event in events.iter() {
+    for event in events.read() {
 		if let GraphEvent::RemoveItem(entity) = event {
 			// Collect any edges that will be destroyed by this removal
 			if let Ok(_) = q_nodes.get(*entity) {

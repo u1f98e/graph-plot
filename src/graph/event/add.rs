@@ -15,7 +15,7 @@ pub(crate) fn add_node_event(
     img_cache: Res<ImageCache>,
     text_style: Res<DefaultTextStyle>,
 ) {
-    for event in events.iter() {
+    for event in events.read() {
         if let GraphEvent::AddNode(pos) = event {
             let transform = Transform::default().with_translation(Vec3::new(pos.x, pos.y, 0.0));
             let node = commands
@@ -63,7 +63,7 @@ pub(crate) fn add_edge_event(
     cache: Res<ImageCache>,
     text_style: Res<DefaultTextStyle>,
 ) {
-    for event in events.iter() {
+    for event in events.read() {
         if let GraphEvent::AddEdge(a, b) = event {
             let (start, start_t) = q_nodes.get(**a).unwrap();
             let (end, end_t) = q_nodes.get(**b).unwrap();

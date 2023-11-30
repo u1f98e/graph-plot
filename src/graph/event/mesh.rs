@@ -32,7 +32,7 @@ pub(crate) fn move_item_event(
         _ => panic!("Wrong type for position attribute"),
     };
 
-    for ItemMovedEvent(entity, delta) in events.iter() {
+    for ItemMovedEvent(entity, delta) in events.read() {
         // Do the transformation separately to get around borrow restrictions
         if let Ok((_, mut node_t)) = q_nodes.get_mut(*entity) {
             node_t.translation += *delta;
@@ -129,7 +129,7 @@ pub(crate) fn regen_edge_mesh(
     q_node: Query<(Entity, &mut GNode, &Transform, &Sprite), With<GNode>>,
     mut q_edge: Query<(&mut GEdge, &Transform, &Sprite)>,
 ) {
-    if let Some(_) = events.iter().last() {
+    if let Some(_) = events.read().last() {
         let mesh: &mut Mesh = meshes.get_mut(&graph.edge_mesh_handle.0).unwrap();
 
         // There needs to be some initial values here or the mesh gets optimized

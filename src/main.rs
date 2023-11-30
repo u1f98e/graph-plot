@@ -1,6 +1,6 @@
 use bevy::{
     prelude::*,
-    render::{RenderPlugin, settings::{WgpuSettings, PowerPreference}},
+    render::{RenderPlugin, settings::{WgpuSettings, PowerPreference, RenderCreation}},
 };
 use bevy_egui::EguiPlugin;
 
@@ -31,10 +31,10 @@ fn setup(
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins.set(RenderPlugin {
-            wgpu_settings: WgpuSettings {
+            render_creation: RenderCreation::Automatic(WgpuSettings {
                 power_preference: PowerPreference::LowPower,
                 ..Default::default()
-            }
+            })
         }))
         .insert_resource(bevy::winit::WinitSettings::desktop_app())
         .add_plugins(EguiPlugin)

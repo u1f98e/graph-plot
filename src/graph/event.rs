@@ -54,7 +54,7 @@ pub(crate) fn item_selected_event(
     cache: Res<ImageCache>,
     mut ui_info: ResMut<UiItemInfo>,
 ) {
-    for event in events.iter() {
+    for event in events.read() {
         match event {
             GraphEvent::ItemSelected(entity) => {
                 if let Some(entity) = cursor.selected {
@@ -112,7 +112,7 @@ pub(crate) fn reset_colors_event(
     mut q_edge: Query<&mut Sprite, GEdgeExclusive>,
     mut regen_edge_mesh: EventWriter<RegenEdgeMesh>,
 ) {
-    for event in events.iter() {
+    for event in events.read() {
         match event {
             GraphEvent::ResetColors => {
                 for mut sprite in q_node.iter_mut() {
