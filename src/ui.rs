@@ -96,6 +96,7 @@ pub(crate) fn egui_sys(
         let mut mode = cursor.mode;
         egui::ComboBox::from_label("Mode")
             .selected_text(format!("{mode}"))
+            .width(125.0)
             .show_ui(ui, |ui| {
                 ui.selectable_value(
                     &mut mode,
@@ -132,6 +133,11 @@ pub(crate) fn egui_sys(
                     &mut mode,
                     CursorMode::Bipartite,
                     format!("{}", CursorMode::Bipartite),
+                );
+                ui.selectable_value(
+                    &mut mode,
+                    CursorMode::Dijkstra,
+                    format!("{}", CursorMode::Dijkstra),
                 );
             });
         if mode != cursor.mode {

@@ -1,7 +1,7 @@
 pub mod event;
 pub mod plugin;
 
-use std::collections::{HashMap, HashSet};
+use std::{collections::{HashMap, HashSet}, thread::current};
 
 use bevy::{prelude::*, sprite::Mesh2dHandle};
 
@@ -115,6 +115,22 @@ pub enum OppositeNode {
     CounterAdjacent(NodeE),
     Loop,
     None
+}
+
+#[derive(Copy, Clone)]
+pub struct PathPart {
+    node: NodeE,
+    edge: Option<EdgeE>
+}
+
+impl PathPart {
+    pub fn with_edge(node: NodeE, edge: EdgeE) -> Self {
+        PathPart { node, edge: Some(edge) }
+    }
+
+    pub fn without_edge(node: NodeE) -> Self {
+        PathPart { node, edge: None }
+    }
 }
 
 impl Graph {
@@ -237,24 +253,39 @@ impl Graph {
 
         nodes
     }
+    
+    /// Get the nodes adjacent to the given node, taking into consideration edge direction
+    pub fn adjacent_nodes_directed(&self, node: &NodeE) -> HashSet<NodeE> {
+        let mut nodes = HashSet::new();
+        for edge in self.node_edges.get(node).unwrap() {
+            match self.opposite(node, edge) {
+                OppositeNode::Adjacent(adj) => {
+                    nodes.insert(adj);
+                },
+                _ => ()
+            }
+        }
+
+        nodes
+    }
 
     /// Perform a depth-first search of the graph, starting at the given node
     /// and calling the predicate on each node and edge visited.
     pub fn spanning_tree<F>(&self, start: &NodeE, mut visit: F)
     where
-        F: FnMut(&NodeE, Option<&EdgeE>) -> bool,
+        F: FnMut(&PathPart) -> bool,
     {
         let mut visited = HashSet::new();
         let mut stack = Vec::new();
         stack.push(*start);
-        visit(start, None);
+        visit(&PathPart::without_edge(*start));
         visited.insert(*start);
 
         while let Some(node) = stack.pop() {
             for edge in self.node_edges.get(&node).unwrap() {
                 if let OppositeNode::Adjacent(adj) = self.opposite(&node, edge) {
                     if !visited.contains(&adj) {
-                        if visit(&adj, Some(edge)) {
+                        if visit(&PathPart::with_edge(adj, *edge)) {
                             return; // If visit returns true, return early
                         }
                         visited.insert(adj);
@@ -307,8 +338,8 @@ impl Graph {
     /// Determine whether two nodes are connected in the graph
     pub fn connected(&self, a: &NodeE, b: &NodeE) -> bool {
         let mut connected = false;
-        self.spanning_tree(a, |node, _| {
-            if node == b {
+        self.spanning_tree(a, |part| {
+            if part.node == *b {
                 connected = true;
                 return true;
             }
@@ -350,8 +381,73 @@ impl Graph {
         return true;
     }
 
-    pub fn shortest_path(&self, start: &NodeE, end: &NodeE) -> Option<Vec<(NodeE, EdgeE)>> {
-        None
+    pub fn dijkstra_path(&self, start: &NodeE, end: &NodeE, q_edge: Option<&Query<&GEdge>>) -> Option<Vec<PathPart>> {
+        let mut unvisited = HashSet::new();
+        let mut distances = HashMap::new();
+        let mut previous: HashMap<NodeE, PathPart> = HashMap::new();
+
+        for node in self.node_edges.keys() {
+            distances.insert(*node, std::f32::INFINITY);
+            unvisited.insert(*node);
+        }
+        distances.insert(*start, 0.0);
+
+        while !unvisited.is_empty() {
+            let n = match unvisited.iter().min_by(|a, b| {
+                distances[a].partial_cmp(&distances[b]).unwrap()
+            }) {
+                Some(node) => if node == end {
+                    break
+                }
+                else {
+                    *node
+                },
+                None => break
+            };
+
+            unvisited.remove(&n);
+
+            // For each edge adjacent to n that is still unvisited
+            for edge_e in self.node_edges.get(&n).unwrap().iter() {
+                let adj = match self.opposite(&n, &edge_e) {
+                    OppositeNode::Adjacent(adj) => {
+                        if unvisited.contains(&adj) {
+                            adj
+                        }
+                        else {
+                            continue;
+                        }
+                    },
+                    _ => continue
+                };
+
+                let weight = match q_edge {
+                    Some(q) => q.get(**edge_e).unwrap().weight,
+                    None => 1
+                };
+
+                let dist = distances[&n] + weight as f32;
+                if dist < distances[&adj] {
+                    distances.insert(adj, dist);
+                    previous.insert(adj, PathPart::with_edge(n, *edge_e));
+                }
+            }
+        }
+
+        if previous.get(end).is_some() || start == end {
+            let mut path = Vec::new();
+            let mut cursor = Some(PathPart::without_edge(*end));
+            while let Some(part) = cursor {
+                cursor = previous.get(&part.node).map(|part| *part);
+                path.push(part);
+            }
+
+            path.reverse();
+            Some(path)
+        }
+        else {
+            None // No path to the end node from start
+        }
     }
 
     pub fn adjacency_matrix(&self, q_node: &Query<(Entity, &Children), With<GNode>>, q_text: &Query<&Text>) -> LabeledMatrix {
@@ -396,4 +492,7 @@ pub struct LabeledMatrix {
     pub data: Vec<Vec<f32>>,
     pub h_headers: Vec<String>,
     pub v_headers: Vec<String>,
+}
+
+impl LabeledMatrix {
 }

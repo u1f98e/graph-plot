@@ -1,10 +1,10 @@
-mod draw;
 mod add;
 mod remove;
 mod mesh;
+pub(crate) mod draw;
 pub(crate) mod phys;
 
-pub(crate) use {add::*, remove::*, mesh::*, draw::*};
+pub(crate) use {add::*, remove::*, mesh::*};
 
 use bevy::prelude::*;
 

@@ -21,6 +21,7 @@ pub enum CursorMode {
     Info,
     SpanningTree,
     Bipartite,
+    Dijkstra
 }
 
 impl core::fmt::Display for CursorMode {
@@ -33,7 +34,8 @@ impl core::fmt::Display for CursorMode {
             CursorMode::Remove => write!(f, "Erase"),
             CursorMode::Paint => write!(f, "Paint"),
             CursorMode::SpanningTree => write!(f, "Draw Spanning Tree"),
-            CursorMode::Bipartite => write!(f, "Try Bipartite Graph"),
+            CursorMode::Bipartite => write!(f, "Color Bipartite"),
+            CursorMode::Dijkstra => write!(f, "Shortest Path"),
         }
     }
 }
@@ -235,6 +237,17 @@ pub(crate) fn mouse_button_sys(
                 CursorMode::Bipartite => {
                     if let Some(entity) = get_closest_grab(&cursor, q_node.iter()) {
                         ev_analyze.send(AnalyzeGraphEvent::Bipartite(NodeE(entity)));
+                    }
+                }
+                CursorMode::Dijkstra => {
+                    if let Some(entity) = get_closest_grab(&cursor, q_node.iter()) {
+                        if let Some(selected_entity) = cursor.selected {
+                            ev_analyze.send(AnalyzeGraphEvent::Dijkstra(NodeE(selected_entity), NodeE(entity)));
+                            ev_graph.send(GraphEvent::ItemDeselected);
+                        } else {
+                            cursor.selected = Some(entity);
+                            ev_graph.send(GraphEvent::ItemSelected(entity));
+                        }
                     }
                 }
             }
