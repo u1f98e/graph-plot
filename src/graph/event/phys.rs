@@ -17,15 +17,14 @@ pub(crate) fn physics_init_event(
 ) {
 	match events.read().last() {
 		Some(GraphEvent::PhysicsInit) => {
-			for (edge_e, edge, mut edge_t) in q_edges.iter_mut() {
+			for (edge_e, edge, edge_t) in q_edges.iter_mut() {
 				if edge.is_loop() {
 					continue;
 				}
 				let start_t = q_nodes.get(*edge.start).unwrap();
 				let end_t = q_nodes.get(*edge.end).unwrap();
-				let midpoint = offset_midpoint(start_t.translation, end_t.translation, 10.0);
-				let diff = edge_t.translation - midpoint;
-				edge_t.translation = midpoint;
+				let midpoint = offset_midpoint(start_t.translation, end_t.translation, 20.0);
+				let diff = midpoint - edge_t.translation;
 				move_ev.send(ItemMovedEvent(edge_e, diff));
 			}
 		}

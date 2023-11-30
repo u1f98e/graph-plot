@@ -40,7 +40,11 @@ pub(crate) fn move_item_event(
 
         if let Ok((node_e, node_t)) = q_nodes.get(*entity) {
             for edge_e in graph.node_edges.get(&NodeE(node_e)).unwrap() {
-                let (edge, mut edge_t) = q_edges.get_mut(**edge_e).unwrap();
+                let (edge, mut edge_t) = match q_edges.get_mut(**edge_e) {
+                    Ok(e) => e,
+                    Err(_) => continue,
+                };
+
                 if let Some(offset) = edge.offset {
                     if edge.is_loop() {
                         edge_t.translation += *delta;
