@@ -1,5 +1,3 @@
-use std::fmt::format;
-
 use bevy::prelude::*;
 use bevy_egui::{egui, EguiContexts};
 
@@ -10,7 +8,6 @@ use crate::{
         EdgeE, GEdge, GNode, Graph, LabeledMatrix, NodeE,
     },
     input::{CursorInfo, CursorMode},
-    smatrix::SMatrix,
     types::{GEdgeExclusive, GNodeExclusive},
 };
 
