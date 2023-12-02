@@ -258,8 +258,13 @@ pub(crate) fn mouse_button_sys(
 pub fn mouse_scroll_input(
     mut scroll_evr: EventReader<MouseWheel>,
     mut q_camera: Query<&mut OrthographicProjection, With<MainCamera>>,
+    mut q_egui: Query<&mut EguiContext>,
 ) {
     for MouseWheel { unit, y, .. } in scroll_evr.read() {
+        if egui_has_pointer(&mut q_egui) {
+            continue;
+        }
+
         let mut proj = q_camera.single_mut();
         match unit {
             MouseScrollUnit::Line => {

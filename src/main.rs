@@ -9,7 +9,7 @@ mod input;
 mod materials;
 mod ui;
 pub mod types;
-// pub mod smatrix;
+pub mod smatrix;
 
 #[derive(Component)]
 pub struct MainCamera;

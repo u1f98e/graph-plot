@@ -1,3 +1,5 @@
+use std::fmt::format;
+
 use bevy::prelude::*;
 use bevy_egui::{egui, EguiContexts};
 
@@ -8,6 +10,7 @@ use crate::{
         EdgeE, GEdge, GNode, Graph, LabeledMatrix, NodeE,
     },
     input::{CursorInfo, CursorMode},
+    smatrix::SMatrix,
     types::{GEdgeExclusive, GNodeExclusive},
 };
 
@@ -34,7 +37,8 @@ pub(crate) enum UiItemInfo {
 pub(crate) struct GraphInfoWindow {
     pub open: bool,
     adj_matrix: LabeledMatrix,
-    max_col_width: usize
+    max_col_width: usize,
+    eigen: Option<nalgebra::SymmetricEigen<f32, nalgebra::Dyn>>,
 }
 
 pub(crate) fn egui_sys(
@@ -249,20 +253,60 @@ pub(crate) fn egui_show_graph_info(
     egui::Window::new("Graph Info")
         .open(&mut open)
         .show(contexts.ctx_mut(), |ui| {
-            egui::ScrollArea::both().max_width(200.0).max_width(200.0).show(ui, |ui| {
-                if ui.button("Refresh").clicked() || info_win.adj_matrix.data.is_empty() {
-                    info_win.adj_matrix = graph.adjacency_matrix(&q_nodes, &q_text);
+            egui::ScrollArea::both()
+                .max_width(200.0)
+                .max_width(200.0)
+                .show(ui, |ui| {
+                    if ui.button("Refresh").clicked() || info_win.adj_matrix.data.is_empty() {
+                        info_win.adj_matrix = graph.adjacency_matrix(&q_nodes, &q_text);
 
-                    // Get the maximum column width for the matrix
-                    let mut max_width = 0;
-                    for header in info_win.adj_matrix.h_headers.iter() {
-                        max_width = max_width.max(header.len());
+                        let size = info_win.adj_matrix.data.len();
+                        let matrix = nalgebra::DMatrix::from_vec(
+                            size,
+                            size,
+                            info_win.adj_matrix.data.iter().flatten().cloned().collect(),
+                        );
+                        info_win.eigen = Some(nalgebra::linalg::SymmetricEigen::new(matrix));
+
+                        // Get the maximum column width for the matrix
+                        let mut max_width = 0;
+                        for header in info_win.adj_matrix.h_headers.iter() {
+                            max_width = max_width.max(header.len());
+                        }
+                        info_win.max_col_width = max_width;
                     }
-                    info_win.max_col_width = max_width;
-                }
-                ui.label("Adjacency Matrix");
-                egui_matrix(ui, &info_win.adj_matrix, info_win.max_col_width);
-            });
+
+                    ui.label("Adjacency Matrix");
+                    egui_matrix(ui, &info_win.adj_matrix, info_win.max_col_width);
+                    ui.separator();
+
+                    ui.label("Eigenvalues:");
+                    ui.label(format!(
+                        "{}",
+                        info_win
+                            .eigen
+                            .as_ref()
+                            .unwrap()
+                            .eigenvalues
+                            .iter()
+                            .map(|e| format!("{:.4}", e))
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    ));
+                    ui.separator();
+
+                    ui.label("Eigenvectors (iterative estimation):");
+                    for (i, vec) in info_win
+                        .eigen
+                        .as_ref()
+                        .unwrap()
+                        .eigenvectors
+                        .column_iter()
+                        .enumerate()
+                    {
+                        ui.label(format!("{}: [{}]", i, vec.iter().map(|e| format!("{:.4}", e)).collect::<Vec<_>>().join(", ")));
+                    }
+                });
         });
 
     info_win.open = open;
