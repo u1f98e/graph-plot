@@ -6,7 +6,7 @@ implemented using the [Bevy](https://bevyengine.org/) engine.
 ## Building
 Requires the [Rust](https://www.rust-lang.org/) toolchain for building.
 
-Build using `cargo build`
+Build and run with `cargo run --release`
 
 The current configuration in `Cargo.toml` is set up specifically for a linux-wayland platform. 
 Removing the feature flags for bevy and reenabling `default-features` might allow you to run 
