@@ -2,7 +2,7 @@ use bevy::{
     prelude::*,
     render::{RenderPlugin, settings::{WgpuSettings, PowerPreference, RenderCreation}},
 };
-use bevy_egui::EguiPlugin;
+use bevy_egui::{EguiPlugin, EguiSettings};
 
 mod graph;
 mod input;
@@ -18,6 +18,7 @@ pub struct TestMesh;
 
 fn setup(
     mut commands: Commands,
+    mut egui_settings: ResMut<EguiSettings>,
 ) {
     commands.init_resource::<input::CursorInfo>();
 
@@ -25,6 +26,8 @@ fn setup(
         Camera2dBundle::default(),
         MainCamera,
     ));
+
+    egui_settings.scale_factor = 1.25;
 }
 
 fn main() {
@@ -36,6 +39,7 @@ fn main() {
             })
         }))
         .insert_resource(bevy::winit::WinitSettings::desktop_app())
+        .insert_resource(ClearColor(Color::rgb(0.3, 0.3, 0.3)))
         .add_plugins(EguiPlugin)
         .add_plugins(graph::plugin::GraphPlugin)
         .add_systems(Startup, setup)
