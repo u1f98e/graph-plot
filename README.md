@@ -22,3 +22,8 @@ it on other platforms.
 - Labels!
 - Colors!
 - Wow!
+
+# Screenshots
+![Screenshot demonstrating program with colored nodes](assets/example-colors.png)
+
+![Screenshot showing node labels, edge directions, and graph info](assets/example-info.png)
